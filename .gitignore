@@ -1,0 +1,12 @@
+# Environment variables — never commit real API keys
+.env
+.env.local
+
+# Dependencies
+node_modules/
+
+# Large preloaded data files (INSEE CSVs) — re-downloadable, not versioned
+data/
+
+# Generated map images
+output/

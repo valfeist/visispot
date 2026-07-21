@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node etape1-concurrents.js)",
+      "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\(\"qualiteDonnees.places :\",JSON.stringify\\(r.qualiteDonnees.places\\)\\);const p=r.concurrents.rayonPrimaire,s=r.concurrents.rayonSecondaire;console.log\\(\"\\\\nPrimaire  \",p.rayonMetres+\"m : nbBrut=\"+p.nbBrut,\"saturated=\"+p.saturated\\);console.log\\(\"  note:\",p.note\\);console.log\\(\"Secondaire\",s.rayonMetres+\"m : nbBrut=\"+s.nbBrut,\"saturated=\"+s.saturated\\);console.log\\(\"  note:\",s.note\\);}\\)')",
+      "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\(\"Top-level keys :\",Object.keys\\(r\\).join\\(\", \"\\)\\);console.log\\(\"dataQuality.places :\",JSON.stringify\\(r.dataQuality.places\\)\\);const p=r.competitors.primaryRadius,s=r.competitors.secondaryRadius;console.log\\(\"primaryRadius  \",p.radiusMeters+\"m : rawCount=\"+p.rawCount,\"saturated=\"+p.saturated\\);console.log\\(\"secondaryRadius\",s.radiusMeters+\"m : rawCount=\"+s.rawCount,\"saturated=\"+s.saturated\\);console.log\\(\"sample competitor:\",JSON.stringify\\(p.results[0]\\)\\);}\\)')",
+      "Bash(node /Users/valentinfeist/VisiSpotApp/competitor-search.js)",
+      "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const r=JSON.parse\\(d\\);console.log\\(\"OK — businessType:\",r.order.businessType,\"| primary\",r.competitors.primaryRadius.radiusMeters+\"m rawCount=\"+r.competitors.primaryRadius.rawCount\\);}\\)')",
+      "Bash(node competitor-search.js)",
+      "Bash(node -e 'let d=\"\";process.stdin.on\\(\"data\",c=>d+=c\\).on\\(\"end\",\\(\\)=>{const r=JSON.parse\\(d\\);const p=r.competitors.primaryRadius;console.log\\(\"placesStatus:\",r.dataQuality.places.status\\);console.log\\(\"PRIMARY \"+p.radiusMeters+\"m : direct=\"+p.directCount,\"chain=\"+p.chainCount,\"filteredOut=\"+p.filteredOutCount,\"raw=\"+p.rawCount,\"saturated=\"+p.saturated\\);console.log\\(\"\\\\n-- DIRECT --\"\\);p.competitorsDirect.forEach\\(c=>console.log\\(\"  +\",c.name\\)\\);console.log\\(\"\\\\n-- CHAIN --\"\\);p.competitorsChain.forEach\\(c=>console.log\\(\"  ~\",c.name,\"=>\",c.matchedTerm,\"|\",c.reason\\)\\);console.log\\(\"\\\\n-- FILTERED OUT --\"\\);p.filteredOut.forEach\\(c=>console.log\\(\"  -\",c.name,\"=>\",c.matchedTerm,\"|\",c.reason\\)\\);}\\)')",
+      "WebSearch",
+      "WebFetch(domain:www.insee.fr)",
+      "WebFetch(domain:www.data.gouv.fr)",
+      "Bash(unzip -oq pop.zip)",
+      "Bash(unzip -oq logement.zip)",
+      "Bash(unzip -oq revenus.zip)",
+      "Bash(grep -nE 'IRIS|^P21_POP[0-9]|^P21_POP$|COM|LIBIRIS')",
+      "Bash(grep -nE 'IRIS|P21_RP$|P21_RP_PROP|P21_RP_LOC|P21_RP_GRAT')",
+      "Bash(curl -sL \"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-iris/records?limit=1&where=com_code%3D%2233063%22&select=iris_code,iris_name,com_code,com_name\")",
+      "Bash(curl -sL \"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-iris/records?limit=1&where=com_code%3D%2233063%22&select=iris_code,geo_shape\")",
+      "Bash(curl -sIL \"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-iris/exports/geojson\")",
+      "Bash(node demographics.js)",
+      "Bash(awk '{print \"Taille actuelle:\", $5}')",
+      "Bash(curl -sG https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-iris/records --data-urlencode 'where=in_bbox\\(geo_shape, 44.835, -0.600, 44.848, -0.575\\)' --data-urlencode select=iris_code,iris_name --data-urlencode limit=20)",
+      "Bash(node iris-geometry.js)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}
