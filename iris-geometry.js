@@ -14,6 +14,12 @@
 const ODS_RECORDS_URL =
   "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/georef-france-iris/records";
 
+// Pin the IRIS contour vintage. The dataset currently holds only "2024"
+// (geography as of 01/01/2024), which is exactly the geography of the RP 2022
+// demographics CSVs. Pinning keeps geometry reproducible and prevents silently
+// mixing a future millésime whose IRIS codes would no longer match the CSVs.
+const IRIS_YEAR = "2024";
+
 // =====================================================================
 // BLOCK 1 — Fetch IRIS (code + geometry) within a bounding box
 // =====================================================================
@@ -27,7 +33,7 @@ async function fetchIrisInBbox({ minLat, minLon, maxLat, maxLon }) {
 
   while (true) {
     const params = new URLSearchParams({
-      where: `in_bbox(geo_shape, ${minLat}, ${minLon}, ${maxLat}, ${maxLon})`,
+      where: `in_bbox(geo_shape, ${minLat}, ${minLon}, ${maxLat}, ${maxLon}) and year=date'${IRIS_YEAR}'`,
       select: "iris_code,iris_name,geo_shape",
       limit: String(pageSize),
       offset: String(offset),
