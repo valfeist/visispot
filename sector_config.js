@@ -19,7 +19,8 @@ const SECTOR_CONFIG = {
   "epicerie_fine":        { radius_primary: 700,  radius_secondary: 1000 },
   "caviste":              { radius_primary: 700,  radius_secondary: 1000 },
   "pressing":             { radius_primary: 600,  radius_secondary: 800  },
-  "services_personne":    { radius_primary: 600,  radius_secondary: 800  },
+  "laverie":              { radius_primary: 400,  radius_secondary: 600  },
+  "retouche":             { radius_primary: 600,  radius_secondary: 800  },
 };
 
 module.exports = { SECTOR_CONFIG };

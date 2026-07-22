@@ -13,7 +13,7 @@ require("./load-env");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { geocodeAddress, searchCompetitors, classifyCompetitors, GOOGLE_TYPES_BY_SECTOR } =
+const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector, detectContamination } =
   require("./competitor-search");
 const { validateZone } = require("./zone-validation");
 const { getIsochrones } = require("./isochrones");
@@ -25,6 +25,7 @@ const { getCommercialDynamics } = require("./commercial-dynamics");
 const { getCommercialSaleReference } = require("./market-reference");
 const { SECTOR_CONFIG } = require("./sector_config");
 const { EXCLUSION_LISTS } = require("./exclusion-lists");
+const { MVP_SECTORS, assertSectorKeyConsistency } = require("./sector-keys");
 const {
   reportFolderName,
   buildLocationMapUrl,
@@ -32,8 +33,9 @@ const {
   buildCompetitorsMapUrl,
   downloadMap,
 } = require("./static-maps");
-const { competitiveSynthesis, sectorAdequacy, riskSignals, scoreVerdict, zoneSynthesis } =
+const { competitiveSynthesis, sectorAdequacy, riskSignals, writeVerdictSummary, zoneSynthesis } =
   require("./llm-synthesis");
+const { computeScore } = require("./scoring");
 const { buildReportHtml } = require("./report-builder");
 
 const OUTPUT_DIR = path.join(__dirname, "output");
@@ -74,11 +76,14 @@ const order = {
   knownCompetitors: null, // Champ 4 (texte libre) — laissé vide hors démo.
 };
 
+// Boot assertion: every sector-keyed config must share the exact MVP perimeter,
+// otherwise a selectable sector could run without a whitelist/benchmark.
+assertSectorKeyConsistency();
+
 // Guard: the business sector must be one we support across the pipeline.
-const SUPPORTED_SECTORS = Object.keys(SECTOR_CONFIG);
-if (!SUPPORTED_SECTORS.includes(order.businessType)) {
+if (!MVP_SECTORS.includes(order.businessType)) {
   console.error(
-    `Secteur "${order.businessType}" non géré.\nSecteurs valides : ${SUPPORTED_SECTORS.join(", ")}`
+    `Secteur "${order.businessType}" non géré.\nSecteurs valides : ${MVP_SECTORS.join(", ")}`
   );
   process.exit(1);
 }
@@ -95,16 +100,21 @@ async function main() {
 
   // --- 2. Competitors -----------------------------------------------
   const radii = SECTOR_CONFIG[order.businessType];
-  const types = GOOGLE_TYPES_BY_SECTOR[order.businessType];
+  const types = includedTypesForSector(order.businessType);
   const entries = EXCLUSION_LISTS[order.businessType] ?? [];
-  const primary = classifyCompetitors(
-    await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types),
-    entries
-  );
-  const secondary = classifyCompetitors(
-    await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types),
-    entries
-  );
+  const primaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types);
+  const secondaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types);
+
+  // Contamination guard-rail: flag any raw result whose primaryType is outside
+  // the sector whitelist (cross-sector bleed detector, all sectors).
+  const contamination = detectContamination(primaryRaw, order.businessType);
+  if (contamination.length) {
+    console.warn(`⚠️  Contamination filtrée (${contamination.length}) : ` +
+      contamination.map((c) => `${c.name} [${c.primaryType}]`).join(", "));
+  }
+
+  const primary = classifyCompetitors(primaryRaw, order.businessType, entries);
+  const secondary = classifyCompetitors(secondaryRaw, order.businessType, entries);
   const placesStatus = primary.direct.length + primary.chain.length < 3 ? "partielle" : "complete";
 
   // --- 3. Isochrones + demographics ---------------------------------
@@ -178,13 +188,13 @@ async function main() {
   })).json;
 
   // P1 runs BEFORE P5 so its verdict + signals can feed the P5/P1 liaison.
-  console.log("Appel LLM P1 (score & verdict)...");
-  const p1 = (await scoreVerdict({
+  // The score/verdict/keyMetrics are computed DETERMINISTICALLY (scoring.js);
+  // the LLM only writes the executive prose from that breakdown.
+  const p1Input = {
     businessType: order.businessType,
     targetAudience: order.targetAudience,
     zone: { commune: zone.commune?.name, population: zone.commune?.population, covered: zone.covered },
     dataQuality: { places: placesStatus, iris: agg10.quality, besttime: "insuffisant" },
-    flux: { status: "insuffisant" },
     competition: {
       radiusPrimary: radii.radius_primary,
       directPrimary: primary.direct.length,
@@ -205,7 +215,20 @@ async function main() {
       worksUnknown: true,
       rentUnknown: true,
     },
-  })).json;
+  };
+
+  const scored = computeScore(p1Input);
+  console.log(`Score déterministe : ${scored.score}/10 · ${scored.verdict}` + (scored.breakdown.vetoes.length ? ` (vetos : ${scored.breakdown.vetoes.join(", ")})` : ""));
+
+  console.log("Appel LLM P1 (rédaction du verdict)...");
+  const p1Prose = (await writeVerdictSummary({ ...p1Input, ...scored })).json;
+  const p1 = {
+    score: scored.score,
+    verdict: scored.verdict,
+    keyMetrics: scored.keyMetrics,
+    scoreBreakdown: scored.breakdown,
+    ...p1Prose,
+  };
 
   console.log("Appel LLM P5 (adéquation sectorielle)...");
   const p5 = (await sectorAdequacy({
@@ -288,6 +311,9 @@ async function main() {
       bestTime: "insuffisant",
       mapbox: "complete",
       openrouteservice: "complete",
+      // Cross-sector contamination filtered out of the primary radius (guard-rail).
+      contaminationFiltered: contamination.length,
+      contaminationSample: contamination.slice(0, 8),
     },
     p1,
     p2: {

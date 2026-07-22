@@ -23,12 +23,27 @@ async function countBodacc(where) {
   return data.total_count ?? 0;
 }
 
-async function getCommercialDynamics(postalCode, { months = 24 } = {}) {
+// Rolling window anchored to COMPLETE calendar months, so the result is
+// reproducible: any two runs in the same month share identical bounds and
+// therefore identical counts. A day-anchored window (the previous bug) drifted
+// forward every day and made the cumulative counts shrink between runs.
+//   windowStart = first day of the month, `months` months back (inclusive)
+//   windowEnd   = first day of the current month (EXCLUSIVE upper bound)
+// Pure function (no I/O) — tested offline in test/bodacc.test.js.
+function bodaccWindow(now = new Date(), months = 24) {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth(); // 0-based; Date.UTC handles negative months
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const windowEnd = new Date(Date.UTC(y, m, 1)); // 1st of current month, excluded
+  const windowStart = new Date(Date.UTC(y, m - months, 1));
+  const lastIncluded = new Date(Date.UTC(y, m, 0)); // last day of previous month
+  return { windowStart: iso(windowStart), windowEnd: iso(windowEnd), windowEndInclusive: iso(lastIncluded), months };
+}
+
+async function getCommercialDynamics(postalCode, { months = 24, now = new Date() } = {}) {
   if (!postalCode) return null;
-  const since = new Date();
-  since.setMonth(since.getMonth() - months);
-  const sinceDate = since.toISOString().slice(0, 10);
-  const base = `cp="${postalCode}" AND dateparution>="${sinceDate}"`;
+  const { windowStart, windowEnd, windowEndInclusive } = bodaccWindow(now, months);
+  const base = `cp="${postalCode}" AND dateparution>="${windowStart}" AND dateparution<"${windowEnd}"`;
 
   try {
     const [creations, radiations, proceduresCollectives] = await Promise.all([
@@ -41,7 +56,7 @@ async function getCommercialDynamics(postalCode, { months = 24 } = {}) {
     if (creations > radiations * 1.05) trend = "en amélioration";
     else if (creations < radiations * 0.95) trend = "en dégradation";
 
-    return { postalCode, sinceDate, months, creations, radiations, proceduresCollectives, trend };
+    return { postalCode, windowStart, windowEnd, windowEndInclusive, months, creations, radiations, proceduresCollectives, trend };
   } catch (error) {
     return null; // best-effort: BODACC unavailable
   }
@@ -56,4 +71,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { getCommercialDynamics };
+module.exports = { getCommercialDynamics, bodaccWindow };
