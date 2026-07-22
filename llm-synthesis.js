@@ -295,7 +295,7 @@ async function riskSignals(input) {
   const v = input.vacancy;
   const b = input.bodacc;
   const bodaccLine = b
-    ? `BODACC (code postal ${b.postalCode}, depuis ${b.sinceDate}) : ${b.creations} créations, ${b.radiations} radiations, ${b.proceduresCollectives} procédures collectives → tendance calculée : ${b.trend}`
+    ? `BODACC (code postal ${b.postalCode}, période du ${b.windowStart} au ${b.windowEndInclusive}, soit ${b.months} mois) : ${b.creations} créations, ${b.radiations} radiations, ${b.proceduresCollectives} procédures collectives → tendance calculée : ${b.trend}`
     : "BODACC : non disponible — se rabattre sur la vacance OSM";
 
   const user = `Données pour les signaux de risque (page 6) :
