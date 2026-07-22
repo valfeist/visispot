@@ -166,6 +166,48 @@ async function findIrisInPolygon(isochroneGeometry) {
 }
 
 // =====================================================================
+// BLOCK 4b — Surfacic weight of an IRIS inside an isochrone
+// =====================================================================
+// Deterministic grid sampling: over the IRIS bounding box, a regular grid of
+// cell centers; weight = (cells inside IRIS AND isochrone) / (cells inside
+// IRIS). Robust to non-convex isochrones, reuses pointInPolygon, no dependency,
+// reproducible. Fixes the whole-IRIS over-count on small communes.
+function irisAreaWeight(irisGeometry, isochroneGeometry, gridN = 48) {
+  if (!irisGeometry) return 1; // no geometry -> fall back to whole count
+  const { minLon, minLat, maxLon, maxLat } = bboxOf(irisGeometry);
+  const stepX = (maxLon - minLon) / gridN;
+  const stepY = (maxLat - minLat) / gridN;
+  if (stepX === 0 || stepY === 0) return 1;
+
+  let inIris = 0;
+  let inBoth = 0;
+  for (let i = 0; i < gridN; i++) {
+    const x = minLon + (i + 0.5) * stepX;
+    for (let j = 0; j < gridN; j++) {
+      const y = minLat + (j + 0.5) * stepY;
+      if (!pointInPolygon([x, y], irisGeometry)) continue;
+      inIris++;
+      if (pointInPolygon([x, y], isochroneGeometry)) inBoth++;
+    }
+  }
+  return inIris === 0 ? 0 : inBoth / inIris;
+}
+
+// Returns [{ code, name, weight }] for every IRIS with a non-zero area share
+// inside the isochrone. Weight in (0, 1]. Demographics multiplies each IRIS's
+// counts by its weight instead of counting it whole.
+async function findIrisWeightsInPolygon(isochroneGeometry, { gridN = 48 } = {}) {
+  const candidates = await fetchIrisInBbox(bboxOf(isochroneGeometry));
+  const out = [];
+  for (const iris of candidates) {
+    if (!iris.geometry) continue;
+    const weight = irisAreaWeight(iris.geometry, isochroneGeometry, gridN);
+    if (weight > 0) out.push({ code: iris.code, name: iris.name, weight: Number(weight.toFixed(4)) });
+  }
+  return out;
+}
+
+// =====================================================================
 // BLOCK 5 — Run directly: full step 1 + 4 + 5 integration on Bordeaux
 // =====================================================================
 
@@ -200,4 +242,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { findIrisForPoint, findIrisInPolygon, fetchIrisInBbox };
+module.exports = { findIrisForPoint, findIrisInPolygon, findIrisWeightsInPolygon, irisAreaWeight, fetchIrisInBbox };
