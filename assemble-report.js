@@ -17,7 +17,7 @@ const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesFor
   require("./competitor-search");
 const { validateZone } = require("./zone-validation");
 const { getIsochrones } = require("./isochrones");
-const { findIrisInPolygon } = require("./iris-geometry");
+const { findIrisWeightsInPolygon } = require("./iris-geometry");
 const { loadIrisData, aggregateDemographics } = require("./demographics");
 const { getCommercialDensity } = require("./commercial-density");
 const { getStreetContext } = require("./street-context");
@@ -120,8 +120,8 @@ async function main() {
   // --- 3. Isochrones + demographics ---------------------------------
   const isochrones = await getIsochrones(loc.latitude, loc.longitude);
   const irisData = loadIrisData();
-  const iris5 = await findIrisInPolygon(isochrones.rings.walk5min.geometry);
-  const iris10 = await findIrisInPolygon(isochrones.rings.walk10min.geometry);
+  const iris5 = await findIrisWeightsInPolygon(isochrones.rings.walk5min.geometry);
+  const iris10 = await findIrisWeightsInPolygon(isochrones.rings.walk10min.geometry);
   const agg5 = aggregateDemographics(iris5, irisData);
   const agg10 = aggregateDemographics(iris10, irisData);
 

@@ -115,7 +115,14 @@ function round(n) {
   return n === null ? null : Math.round(n);
 }
 
-function aggregateDemographics(irisCodes, data) {
+// Accepts either bare IRIS codes (weight 1) or { code, weight } entries. The
+// weight is the surfacic share of the IRIS inside the zone (iris-geometry.js):
+// each IRIS's counts are multiplied by it instead of being counted whole.
+function aggregateDemographics(irisEntries, data) {
+  const entries = irisEntries.map((e) =>
+    typeof e === "string" ? { code: e, weight: 1 } : { code: e.code, weight: e.weight ?? 1 }
+  );
+
   const found = [];
   const missing = [];
 
@@ -132,31 +139,32 @@ function aggregateDemographics(irisCodes, data) {
   let incomeMax = null;
   let irisWithIncome = 0;
 
-  for (const iris of irisCodes) {
-    const pop = data.population.get(iris);
+  for (const { code, weight } of entries) {
+    const pop = data.population.get(code);
     if (!pop) {
-      missing.push(iris);
+      missing.push(code);
       continue;
     }
-    found.push(iris);
+    found.push(code);
 
-    popTotal += pop.total ?? 0;
-    age["0-17"] += pop.age0_17;
-    age["18-39"] += pop.age18_39;
-    age["40-64"] += pop.age40_64;
-    age["65+"] += pop.age65p;
+    popTotal += (pop.total ?? 0) * weight;
+    age["0-17"] += pop.age0_17 * weight;
+    age["18-39"] += pop.age18_39 * weight;
+    age["40-64"] += pop.age40_64 * weight;
+    age["65+"] += pop.age65p * weight;
 
-    const housing = data.housing.get(iris);
+    const housing = data.housing.get(code);
     if (housing) {
-      principalResidences += housing.principalResidences ?? 0;
-      owners += housing.owners ?? 0;
+      principalResidences += (housing.principalResidences ?? 0) * weight;
+      owners += (housing.owners ?? 0) * weight;
     }
 
-    const inc = data.income.get(iris);
+    const inc = data.income.get(code);
     if (inc && inc.medianEuros !== null) {
-      const weight = housing?.principalResidences ?? pop.total ?? 0;
-      incomeWeightedSum += inc.medianEuros * weight;
-      incomeWeight += weight;
+      // Weight the income mean by (households × surfacic share).
+      const w = (housing?.principalResidences ?? pop.total ?? 0) * weight;
+      incomeWeightedSum += inc.medianEuros * w;
+      incomeWeight += w;
       irisWithIncome += 1;
       incomeMin = incomeMin === null ? inc.medianEuros : Math.min(incomeMin, inc.medianEuros);
       incomeMax = incomeMax === null ? inc.medianEuros : Math.max(incomeMax, inc.medianEuros);
@@ -185,14 +193,14 @@ function aggregateDemographics(irisCodes, data) {
 
   return {
     quality,
-    irisRequested: irisCodes.length,
+    irisRequested: entries.length,
     irisFound: found.length,
     irisMissing: missing,
     population: {
       total: round(popTotal),
-      // Disclaimer to surface in report P3 (whole-IRIS counting).
+      // Disclaimer to surface in report P3 (surfacic weighting).
       methodNote:
-        "Population des IRIS recoupant la zone, comptés entiers (granularité IRIS ~2000 hab. — sur-estime les petites zones).",
+        "Population pondérée par la part surfacique de chaque IRIS incluse dans la zone (intersection IRIS × isochrone). Un IRIS sans géométrie est compté entier.",
     },
     ageBreakdown,
     housing: {
