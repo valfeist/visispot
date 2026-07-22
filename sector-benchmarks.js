@@ -2,9 +2,12 @@
  * Sector benchmarks for the P5 "sector adequacy" LLM task (brief §6 Task 3).
  *
  * STATUS is now per sector (see `validationStatus`):
- *   - boulangerie, restauration, coiffure — SOURCED (task H, first batch):
- *     per-establishment annual revenue grounded in named public sources.
- *   - the 7 others — still PROPOSED, to be sourced in a later batch.
+ *   - SOURCED (per-establishment revenue grounded in named public sources):
+ *     boulangerie, restauration, coiffure (batch 1) ; caviste, epicerie_fine,
+ *     pressing, laverie (batch 2). Pressing relies on a dated FCGA 2016 figure.
+ *   - still PROPOSED — no credible per-establishment source found yet:
+ *     snacking, beaute (branch reports exist but publish no per-unit CA),
+ *     retouche (too small/artisanal to source reliably).
  *
  * Revenue model (task H): we present a per-establishment annual revenue band,
  * grounded in public sector references (FCGA, Cerfrance, INSEE, branch
@@ -100,8 +103,11 @@ const SECTOR_BENCHMARKS = {
     targetProfile:
       "CSP+, amateurs de produits de qualité, pouvoir d'achat supérieur à la moyenne.",
     revenueAnnualEuros: { min: 150000, max: 400000 },
+    revenueAvgEuros: 300000,
+    revenueSource:
+      "Filière épicerie fine (Xerfi ; Salon Gourmet Selection) : indépendants ≈ 3 Md€ de CA en 2023, soit ≈ 300 000 €/magasin.",
     seasonality: "Fort pic lors des fêtes de fin d'année.",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (filière 2023)",
   },
   caviste: {
     nafCode: "47.25Z",
@@ -110,8 +116,11 @@ const SECTOR_BENCHMARKS = {
     targetProfile:
       "Amateurs et CSP+, propriétaires, pouvoir d'achat supérieur à la moyenne.",
     revenueAnnualEuros: { min: 200000, max: 500000 },
+    revenueAvgEuros: 370000,
+    revenueSource:
+      "Études de marché du secteur caviste (Made in FR ; EPSIMAS ; La Référence Franchise) : CA moyen ≈ 370 000 €/magasin (tendance récente).",
     seasonality: "Fort pic fêtes de fin d'année.",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (études marché 2023)",
   },
   pressing: {
     nafCode: "96.01B",
@@ -119,9 +128,12 @@ const SECTOR_BENCHMARKS = {
       "Service de proximité : un flux moyen et une bonne densité résidentielle/de bureaux à proximité suffisent.",
     targetProfile:
       "Actifs, cadres, ménages avec pouvoir d'achat moyen à supérieur ; clientèle de proximité.",
-    revenueAnnualEuros: { min: 80000, max: 180000 },
+    revenueAnnualEuros: { min: 70000, max: 180000 },
+    revenueAvgEuros: 81000,
+    revenueSource:
+      "FCGA (millésime 2016) : CA moyen pressing/teinturerie ≈ 81 000 €, résultat courant ≈ 15 000 €. Donnée datée, à réactualiser.",
     seasonality: "Pic automne/hiver (vêtements lourds).",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (FCGA 2016 — daté)",
   },
   laverie: {
     nafCode: "96.01B",
@@ -129,9 +141,12 @@ const SECTOR_BENCHMARKS = {
       "Laverie libre-service : dépend surtout de la densité résidentielle de proximité (immeubles, petits logements, étudiants). Un flux de passage moyen suffit ; la clientèle est locale et récurrente.",
     targetProfile:
       "Clientèle de proximité sans équipement lave-linge : locataires, étudiants, petits logements ; pouvoir d'achat moyen.",
-    revenueAnnualEuros: { min: 40000, max: 120000 },
+    revenueAnnualEuros: { min: 25000, max: 120000 },
+    revenueAvgEuros: 45000,
+    revenueSource:
+      "Marché ≈ 200 M€ pour ≈ 4 500 laveries (≈ 44 000 €/établissement) ; franchises libre-service (Wash'N Dry ≈ 25 000–100 000 € après 2 ans).",
     seasonality: "Faible saisonnalité ; léger pic automne/hiver.",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (marché 2023)",
   },
   retouche: {
     nafCode: "95.29Z",
