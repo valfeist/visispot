@@ -292,7 +292,10 @@ async function main() {
   const reportData = {
     meta: {
       service: "VisiSpot",
-      address: order.address,
+      // Use the geocoded (normalized) address for the title/header: it is the
+      // address actually analyzed and is always well-formed (commune + country),
+      // unlike the raw input which may omit ", France".
+      address: loc.formattedAddress,
       businessType: order.businessType,
       dateLabel: now.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }),
     },
