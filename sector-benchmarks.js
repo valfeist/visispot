@@ -116,14 +116,25 @@ const SECTOR_BENCHMARKS = {
     sources: "Fédération française des pressings et blanchisseries.",
     validationStatus: "proposition — à valider",
   },
-  services_personne: {
+  laverie: {
     fluxAdequacy:
-      "Service de proximité (cordonnerie, retouches) : flux moyen et passage régulier suffisent ; dépend de la densité locale.",
+      "Laverie libre-service : dépend surtout de la densité résidentielle de proximité (immeubles, petits logements, étudiants). Un flux de passage moyen suffit ; la clientèle est locale et récurrente.",
     targetProfile:
-      "Clientèle de proximité, tous profils, ménages avec pouvoir d'achat moyen.",
+      "Clientèle de proximité sans équipement lave-linge : locataires, étudiants, petits logements ; pouvoir d'achat moyen.",
+    revenueAnnualEuros: { min: 40000, max: 120000 },
+    revenuePerSqmYear: { min: 1500, max: 4000 },
+    seasonality: "Faible saisonnalité ; léger pic automne/hiver.",
+    sources: "Fédération française des pressings et blanchisseries ; observatoires du libre-service.",
+    validationStatus: "proposition — à valider",
+  },
+  retouche: {
+    fluxAdequacy:
+      "Atelier de retouche/couture : service de proximité, peu dépendant du flux brut. La densité résidentielle et la présence de commerces d'habillement à proximité comptent davantage.",
+    targetProfile:
+      "Clientèle de proximité, tous profils ; ménages avec pouvoir d'achat moyen à supérieur.",
     revenueAnnualEuros: { min: 50000, max: 130000 },
     revenuePerSqmYear: { min: 1500, max: 4000 },
-    seasonality: "Légère hausse à la rentrée et avant les fêtes.",
+    seasonality: "Hausse à la rentrée et avant les fêtes ; pic changements de saison.",
     sources: "Fédérations de l'artisanat de services ; observatoires.",
     validationStatus: "proposition — à valider",
   },

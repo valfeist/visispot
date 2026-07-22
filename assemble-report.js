@@ -25,6 +25,7 @@ const { getCommercialDynamics } = require("./commercial-dynamics");
 const { getCommercialSaleReference } = require("./market-reference");
 const { SECTOR_CONFIG } = require("./sector_config");
 const { EXCLUSION_LISTS } = require("./exclusion-lists");
+const { MVP_SECTORS, assertSectorKeyConsistency } = require("./sector-keys");
 const {
   reportFolderName,
   buildLocationMapUrl,
@@ -75,11 +76,14 @@ const order = {
   knownCompetitors: null, // Champ 4 (texte libre) — laissé vide hors démo.
 };
 
+// Boot assertion: every sector-keyed config must share the exact MVP perimeter,
+// otherwise a selectable sector could run without a whitelist/benchmark.
+assertSectorKeyConsistency();
+
 // Guard: the business sector must be one we support across the pipeline.
-const SUPPORTED_SECTORS = Object.keys(SECTOR_CONFIG);
-if (!SUPPORTED_SECTORS.includes(order.businessType)) {
+if (!MVP_SECTORS.includes(order.businessType)) {
   console.error(
-    `Secteur "${order.businessType}" non géré.\nSecteurs valides : ${SUPPORTED_SECTORS.join(", ")}`
+    `Secteur "${order.businessType}" non géré.\nSecteurs valides : ${MVP_SECTORS.join(", ")}`
   );
   process.exit(1);
 }

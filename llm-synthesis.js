@@ -86,7 +86,8 @@ const COMPLEMENTARY_SECTORS = {
   epicerie_fine: ["restaurant gastronomique", "caviste", "fromagerie", "marché"],
   caviste: ["restaurant gastronomique", "caviste", "fromagerie", "marché"],
   pressing: ["pressing", "teinturerie", "cordonnerie"],
-  services_personne: ["pressing", "teinturerie", "cordonnerie"],
+  laverie: ["pressing", "teinturerie", "cordonnerie"],
+  retouche: ["pressing", "teinturerie", "cordonnerie"],
 };
 
 const P4_SYSTEM_PROMPT = `Tu rédiges la "synthèse concurrentielle" (page 4) d'un rapport professionnel d'analyse d'emplacement commercial, destiné à un commerçant non-expert qui hésite à signer un bail.

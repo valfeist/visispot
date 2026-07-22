@@ -58,7 +58,8 @@ const GOOGLE_TYPES_BY_SECTOR = {
   epicerie_fine: ["grocery_store", "supermarket"],
   caviste: ["liquor_store"],
   pressing: ["laundry"],
-  services_personne: ["laundry"],
+  laverie: ["laundry"],
+  retouche: ["tailor"],
 };
 
 // Types sent to Google's `includedTypes`. Prefer the mapping whitelist (New
