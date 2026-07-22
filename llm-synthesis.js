@@ -166,10 +166,7 @@ RÈGLES NON NÉGOCIABLES :
 CHAMPS À PRODUIRE :
 - "fluxAdequacy" : le flux estimé est-il suffisant pour ce secteur (vs le seuil fourni) ? Si le flux est indisponible/insuffisant, reste qualitatif et dis-le explicitement, sans inventer de niveau.
 - "demographicAdequacy" : JUGE L'ALIGNEMENT entre le profil de zone et la clientèle cible de CE commerce. Ne REDÉCRIS PAS la zone (c'est le rôle de la page 3) et NE RÉPÈTE PAS les chiffres déjà présentés en page 3. Pars des chiffres pour aller vers l'interprétation sectorielle. Exemple : la page 3 décrit ("profil résidentiel stable, revenus supérieurs à la moyenne"), la page 5 interprète ("ce profil est aligné avec la clientèle cible d'une boulangerie artisanale — revenus disponibles, sensibilité au produit local, fréquence d'achat quotidienne").
-- "revenueRange" :
-  • Si une fourchette de CA calculée depuis la surface t'est fournie : "Pour une surface de {surface} m², la fourchette indicative est de {A}–{B} € de CA annuel en régime de croisière (base : benchmark sectoriel CCI)."
-  • Sinon : "La fourchette de CA dépend fortement de la surface et du positionnement. Pour une estimation personnalisée, renseignez la surface dans le formulaire ou consultez votre expert-comptable avec les benchmarks sectoriels CCI joints."
-  • Dans les DEUX cas, termine par : "Indicatif — dépend du concept, du positionnement et de l'exécution."
+- "revenueRange" : présente la FOURCHETTE DE CA ANNUEL PAR ÉTABLISSEMENT fournie dans les benchmarks (min–max, et la moyenne du secteur si elle est donnée), en une phrase. Précise explicitement que c'est une RÉFÉRENCE SECTORIELLE par établissement, PAS une projection pour ce local précis. Si une surface est fournie, tu peux nuancer QUALITATIVEMENT (une petite surface tire plutôt vers le bas de la fourchette, une grande vers le haut) SANS recalculer ni inventer de chiffre. Si une source t'est donnée, cite-la brièvement (ex. "source : FCGA/Cerfrance"). Si la fourchette est marquée comme non encore sourcée, dis qu'elle est indicative et à confirmer. Termine par : "Indicatif — dépend du concept, du positionnement et de l'exécution."
 - "seasonality" : variations saisonnières si pertinentes pour le secteur.
 - "verdict" : EXACTEMENT "Aligné", "Partiellement aligné" ou "Inadapté".
 - "justification" : 2-3 phrases. SI le verdict de la page 1 fourni est "NON VIABLE" ET que ton "verdict" d'adéquation est "Aligné", tu DOIS ouvrir la justification par exactement cette phrase de liaison, en adaptant {motif} au signal dominant fourni : "Le profil démographique de la zone est aligné avec ce type de commerce. C'est {motif} — et non le profil de zone — qui conduit au verdict NON VIABLE de la page 1." où {motif} vaut "la saturation concurrentielle" (si concurrence Dense), "les signaux de risque" (si plusieurs risques) ou "le flux insuffisant" (si flux Faible/indisponible).`;
@@ -205,15 +202,24 @@ async function sectorAdequacy(input) {
     .map(([bucket, share]) => `${bucket}: ${Math.round(share * 100)}%`)
     .join(" · ");
 
-  // CA range from surface × per-m² benchmark (only when surface is provided).
+  // Per-establishment annual revenue band (task H). Surface is only a
+  // qualitative modulator: we no longer multiply an ungrounded per-m² band by
+  // the surface. The band comes straight from the sourced sector benchmark.
   const surface = input.surfaceSqm;
-  const caRange =
-    surface && benchmark.revenuePerSqmYear
-      ? { min: surface * benchmark.revenuePerSqmYear.min, max: surface * benchmark.revenuePerSqmYear.max }
-      : null;
-  const caLine = caRange
-    ? `Fourchette de CA calculée depuis la surface : surface ${surface} m² → ${caRange.min.toLocaleString("fr-FR")}–${caRange.max.toLocaleString("fr-FR")} € de CA annuel`
-    : "Surface non renseignée → NE PAS chiffrer la fourchette de CA (utiliser le texte alternatif)";
+  const fmt = (n) => n.toLocaleString("fr-FR");
+  const band = benchmark.revenueAnnualEuros;
+  const avgPart = benchmark.revenueAvgEuros
+    ? ` (moyenne du secteur ≈ ${fmt(benchmark.revenueAvgEuros)} €)`
+    : "";
+  const sourcePart = benchmark.revenueSource
+    ? ` [source : ${benchmark.revenueSource}]`
+    : " [fourchette indicative, non encore sourcée — à confirmer]";
+  const caLine = band
+    ? `Fourchette de CA annuel PAR ÉTABLISSEMENT pour ce secteur : ${fmt(band.min)}–${fmt(band.max)} €${avgPart}${sourcePart}`
+    : "Pas de benchmark de CA disponible pour ce secteur.";
+  const surfaceModulator = surface
+    ? `Surface du local : ${surface} m² — à utiliser comme modulateur QUALITATIF (petite surface → bas de fourchette, grande → haut), sans recalculer de chiffre.`
+    : "Surface non communiquée — rester sur la fourchette sectorielle telle quelle.";
 
   const sig = input.p1Signals ?? {};
 
@@ -239,6 +245,7 @@ BENCHMARKS SECTORIELS ENCODÉS (à utiliser, ne pas inventer) :
 - Adéquation flux attendue : ${benchmark.fluxAdequacy}
 - Profil cible du secteur : ${benchmark.targetProfile}
 - ${caLine}
+- ${surfaceModulator}
 - Saisonnalité : ${benchmark.seasonality}
 
 Rédige les sections de la page 5 en respectant strictement les règles.`;
