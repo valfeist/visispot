@@ -10,9 +10,20 @@
  * the PNGs in the report folder).
  */
 
-// INSEE niveau de vie médian national (2021) — référence pour contextualiser
-// le revenu de la zone. À mettre à jour avec le millésime des données.
+// INSEE niveau de vie médian national — référence pour contextualiser le
+// revenu de la zone. Doit rester au même millésime que les revenus de la zone
+// (Filosofi 2021, cf. demographics.js). Valeur 2021 : 23 160 € (France métro.).
 const NATIONAL_MEDIAN_INCOME = 23160;
+
+// Millésimes des données démographiques, affichés au lecteur (P3). Vintage pris
+// par dimension : le plus récent que l'INSEE publie encore à l'IRIS.
+// - Population & logement : RP 2022 (géographie au 01/01/2024).
+// - Revenus : Filosofi 2021 (2022 sauté par l'INSEE ; Filosofi 2 2023 non
+//   diffusé à l'IRIS). Voir la note dans demographics.js.
+const DEMOGRAPHICS_VINTAGE_NOTE =
+  "Sources INSEE : population et logement — RP 2022 (géographie au 01/01/2024) ; " +
+  "revenu médian — Filosofi 2021, dernier millésime publié à l'échelle IRIS. " +
+  "Niveau de vie médian national de référence : 23 160 € (2021).";
 
 const ACCENT = "#1a4fa3"; // bleu institutionnel
 const GO_COLOR = "#1e8e3e";
@@ -328,6 +339,7 @@ function buildPage3(meta, p3) {
       <tr><th>Revenu médian (niveau de vie)</th><td>${revenu}</td></tr>
       <tr><th>Propriétaires de leur résidence</th><td>${pct(p3.ownerShare)}</td></tr>
     </table>
+    <div class="note muted">${DEMOGRAPHICS_VINTAGE_NOTE}</div>
     <h3>Répartition par âge (zone 10 min)</h3>
     ${ageBarsSvg(p3.ageBreakdown)}
     <h3>Densité commerciale <span class="src">source OpenStreetMap</span></h3>

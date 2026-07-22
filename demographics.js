@@ -4,10 +4,11 @@
  * Aggregates population, age structure, median income and housing
  * tenure over a set of IRIS codes (zero API — local CSV only).
  *
- * Data files (in ./data, downloaded from insee.fr, 2021 vintage):
- *   - base-ic-evol-struct-pop-2021.CSV   (population + age)
- *   - base-ic-logement-2021.CSV          (housing tenure)
- *   - BASE_TD_FILO_IRIS_2021_DISP.csv    (Filosofi median income)
+ * Data files (in ./data, downloaded from insee.fr). Vintage is picked per
+ * dimension: the freshest one that INSEE still publishes at the IRIS level.
+ *   - base-ic-evol-struct-pop-2022.CSV   (population + age)   — RP 2022
+ *   - base-ic-logement-2022.CSV          (housing tenure)     — RP 2022
+ *   - BASE_TD_FILO_IRIS_2021_DISP.csv    (Filosofi median income) — 2021
  *
  * The IRIS codes themselves come from the geometry step (point -> IRIS
  * and isochrone -> IRIS); this module only consumes a list of codes.
@@ -18,12 +19,19 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-// TODO (data freshness): currently on 2021 vintage for report testing.
-// 2022 is already available; 2023 expected within weeks. Update the three
-// CSVs (and their column-year prefixes, e.g. P21_* -> P23_*) once 2023 ships.
+// Data freshness (verified 2026-07): we take the newest IRIS-level vintage
+// available per dimension, not a single uniform year.
+//   - Population & housing: RP 2022 (geography as of 01/01/2024). The 2022 CSV
+//     columns are positionally identical to 2021, only the prefix changed
+//     (P21_* -> P22_*), so the indices below are unchanged.
+//   - Income: Filosofi stays 2021. INSEE skipped the 2022 vintage (quality),
+//     and Filosofi 2 (2023, a methodology break) is NOT published at the IRIS
+//     level — communes and above only. 2021 is therefore the freshest income
+//     available at this grain. Do not blend it with commune-level 2023: the two
+//     methodologies are not comparable.
 const DATA_DIR = path.join(__dirname, "data");
-const POPULATION_CSV = path.join(DATA_DIR, "base-ic-evol-struct-pop-2021.CSV");
-const HOUSING_CSV = path.join(DATA_DIR, "base-ic-logement-2021.CSV");
+const POPULATION_CSV = path.join(DATA_DIR, "base-ic-evol-struct-pop-2022.CSV");
+const HOUSING_CSV = path.join(DATA_DIR, "base-ic-logement-2022.CSV");
 const INCOME_CSV = path.join(DATA_DIR, "BASE_TD_FILO_IRIS_2021_DISP.csv");
 
 // =====================================================================
@@ -63,7 +71,7 @@ function loadPopulation() {
     const iris = c[0];
     const sum = (...idx) => idx.reduce((t, i) => t + (parseNumber(c[i]) ?? 0), 0);
     map.set(iris, {
-      total: parseNumber(c[4]),       // P21_POP
+      total: parseNumber(c[4]),       // P22_POP
       age0_17: sum(5, 6, 7, 8),       // 0002,0305,0610,1117
       age18_39: sum(9, 10),           // 1824,2539
       age40_64: sum(11, 12),          // 4054,5564
@@ -78,9 +86,9 @@ function loadHousing() {
   const map = new Map();
   for (const c of rows) {
     map.set(c[0], {
-      principalResidences: parseNumber(c[5]), // P21_RP
-      owners: parseNumber(c[62]),             // P21_RP_PROP
-      renters: parseNumber(c[63]),            // P21_RP_LOC
+      principalResidences: parseNumber(c[5]), // P22_RP
+      owners: parseNumber(c[62]),             // P22_RP_PROP
+      renters: parseNumber(c[63]),            // P22_RP_LOC
     });
   }
   return map;
