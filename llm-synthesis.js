@@ -325,60 +325,70 @@ Rédige les sections de la page 6 en respectant strictement les règles.`;
 }
 
 // =====================================================================
-// BLOCK 2d — Task 1 (P1): score & verdict
+// BLOCK 2d — Task 1 (P1): executive prose for the verdict page
 // =====================================================================
-// The keystone page. Consumes a consolidated summary of every metric and
-// the qualite_donnees signals, and produces score /10 + GO/NO GO + a
-// 3-4 sentence executive summary + the 4 key indicators (brief §4 P1, §6).
+// The keystone page. The score, verdict and 4 key metrics are computed
+// DETERMINISTICALLY upstream (scoring.js) — the LLM no longer produces the
+// number. Here it only WRITES the executive summary + justification from
+// the already-decided breakdown, and must not contradict it (brief §4 P1).
 
-const P1_SYSTEM_PROMPT = `Tu rédiges la PAGE 1 (verdict & synthèse) d'un rapport d'analyse d'emplacement commercial. C'est la page la plus importante : elle doit être lisible en moins de 60 secondes par un commerçant non-expert.
+const P1_SYSTEM_PROMPT = `Tu rédiges les textes de la PAGE 1 (verdict & synthèse) d'un rapport d'analyse d'emplacement commercial. C'est la page la plus importante : elle doit être lisible en moins de 60 secondes par un commerçant non-expert.
+
+IMPORTANT : le score sur 10, le verdict (VIABLE / NON VIABLE) et les 4 métriques clés te sont FOURNIS, déjà calculés par un modèle déterministe. Tu ne les recalcules pas et tu ne les contredis pas. Tu rédiges uniquement les textes qui les expliquent.
 
 RÈGLES NON NÉGOCIABLES :
-- Français clair, zéro jargon analytique. Ton professionnel, direct, bienveillant — clair et rassurant même si le verdict est négatif.
-- N'invente AUCUN chiffre. Utilise uniquement les données fournies.
-- Score : une note sur 10 (un chiffre, au plus une décimale).
-- Verdict : EXACTEMENT "VIABLE" ou "NON VIABLE" (deux états uniquement). Le verdict doit IMPÉRATIVEMENT être justifié — jamais de verdict sans justification.
-- Cohérence obligatoire avec les métriques : pas de "VIABLE" si la concurrence directe est "Dense" ET le flux "Faible" en même temps.
-- Résumé exécutif : 3 à 4 phrases maximum, synthèse de tout le rapport en langage non-expert.
-- Si le verdict est "NON VIABLE" ET que demographicProfile vaut "Aligné", le résumé exécutif DOIT nommer explicitement la raison (densité concurrentielle, signaux de risque, ou flux) pour éviter toute ambiguïté avec la page 5. Exemple : "Malgré un profil démographique favorable, la densité concurrentielle de la zone conduit à un verdict NON VIABLE."
-- 4 métriques clés, avec EXACTEMENT ces vocabulaires :
-  • flux : "Faible" | "Moyen" | "Élevé" (si l'estimation directe de flux manque, déduis une appréciation qualitative à partir de la densité commerciale — ne jamais inventer de nombre de passages)
-  • demographicProfile : "Aligné" | "Neutre" | "Inadapté"
-  • directCompetition : "Absente" | "Modérée" | "Dense"
-  • risks : "Aucun" | "1 signal" | "Plusieurs"
-- Données manquantes : si DEUX sources majeures (concurrents Places ET démographie IRIS) sont toutes deux en défaut (partielle/absente) simultanément, rédige un court encadré de limitation dans "limitationNote" (sinon laisse-le vide).`;
+- Français clair, zéro jargon analytique. Ton professionnel, direct, bienveillant, clair et rassurant même si le verdict est négatif.
+- N'invente AUCUN chiffre. Utilise uniquement les données fournies. Ne cite jamais un score ou un verdict différents de ceux fournis.
+- Résumé exécutif ("executiveSummary") : 3 à 4 phrases maximum, synthèse de tout le rapport en langage non-expert, cohérente avec le verdict fourni.
+- Si le verdict fourni est "NON VIABLE" ET que demographicProfile vaut "Aligné", le résumé exécutif DOIT nommer explicitement la raison dominante fournie (saturation concurrentielle, signaux de risque, ou flux insuffisant) pour éviter toute ambiguïté avec la page 5. Exemple : "Malgré un profil démographique favorable, la densité concurrentielle de la zone conduit à un verdict NON VIABLE."
+- "justification" : 1 à 2 phrases qui expliquent le verdict à partir des métriques fournies.
+- "limitationNote" : si DEUX sources majeures (concurrents Places ET démographie IRIS) sont en défaut (partielle/absente) simultanément, rédige un court encadré de limitation ; sinon laisse une chaîne VIDE.`;
 
 const P1_OUTPUT_SCHEMA = {
   type: "object",
   properties: {
-    score: { type: "number" },
-    verdict: { type: "string", enum: ["VIABLE", "NON VIABLE"] },
     executiveSummary: { type: "string" },
-    keyMetrics: {
-      type: "object",
-      properties: {
-        flux: { type: "string", enum: ["Faible", "Moyen", "Élevé"] },
-        demographicProfile: { type: "string", enum: ["Aligné", "Neutre", "Inadapté"] },
-        directCompetition: { type: "string", enum: ["Absente", "Modérée", "Dense"] },
-        risks: { type: "string", enum: ["Aucun", "1 signal", "Plusieurs"] },
-      },
-      required: ["flux", "demographicProfile", "directCompetition", "risks"],
-      additionalProperties: false,
-    },
     limitationNote: { type: "string" },
     justification: { type: "string" },
   },
-  required: ["score", "verdict", "executiveSummary", "keyMetrics", "limitationNote", "justification"],
+  required: ["executiveSummary", "limitationNote", "justification"],
   additionalProperties: false,
 };
 
-async function scoreVerdict(input) {
+// Picks the dominant negative driver to name in the summary when the
+// verdict is NON VIABLE (from vetoes, else the lowest-contributing pillar).
+function dominantNegativeDriver(breakdown) {
+  const vetoMap = {
+    concurrence_dense_et_flux_faible: "la saturation concurrentielle combinée à un flux insuffisant",
+    demographie_inadaptee: "un profil démographique inadapté",
+    zone_non_couverte: "une commune hors de la zone couverte",
+  };
+  if (breakdown.vetoes.length) return vetoMap[breakdown.vetoes[0]] ?? breakdown.vetoes[0];
+  const labels = {
+    concurrence: "la saturation concurrentielle",
+    demographie: "le profil démographique",
+    flux: "le flux insuffisant",
+    risques: "les signaux de risque",
+  };
+  const worst = Object.entries(breakdown.pillars).sort((a, b) => a[1].weighted - b[1].weighted)[0][0];
+  return labels[worst];
+}
+
+async function writeVerdictSummary(input) {
   const d = input.demographics;
   const ageLines = Object.entries(d.ageBreakdown)
     .map(([bucket, share]) => `${bucket}: ${Math.round(share * 100)}%`)
     .join(" · ");
+  const bd = input.breakdown;
+  const km = input.keyMetrics;
 
-  const user = `Résumé consolidé de toutes les métriques pour le verdict (page 1) :
+  const user = `Résumé consolidé pour rédiger la page 1.
+
+SCORE ET VERDICT DÉJÀ CALCULÉS (à ne pas recalculer ni contredire) :
+- Score : ${input.score}/10 (seuil de viabilité : ${bd.cutoff})
+- Verdict : ${input.verdict}
+- Raison dominante du verdict : ${input.verdict === "NON VIABLE" ? dominantNegativeDriver(bd) : "profil globalement favorable"}
+- Métriques clés : flux ${km.flux} · démographie ${km.demographicProfile} · concurrence ${km.directCompetition} · risques ${km.risks}
 
 Type de commerce : ${input.businessType}
 Commune : ${input.zone.commune} (${input.zone.population} hab., zone couverte : ${input.zone.covered ? "oui" : "non"})
@@ -387,8 +397,6 @@ QUALITÉ DES DONNÉES (signaux) :
 - Concurrents (Google Places) : ${input.dataQuality.places}
 - Démographie (INSEE IRIS) : ${input.dataQuality.iris}
 - Flux (BestTime) : ${input.dataQuality.besttime}
-
-FLUX : ${input.flux.status === "insuffisant" ? "estimation directe indisponible — apprécier qualitativement via la densité commerciale" : input.flux.status}
 
 CONCURRENCE :
 - Concurrents directs dans ${input.competition.radiusPrimary} m : ${input.competition.directPrimary}
@@ -409,12 +417,12 @@ SIGNAUX DE RISQUE :
 - Travaux de voirie : ${input.risks.worksUnknown ? "non vérifiés (pas de source)" : "vérifiés"}
 - Loyer vs marché : ${input.risks.rentUnknown ? "non communiqué" : "comparé"}
 
-Produis le score, le verdict justifié, le résumé exécutif et les 4 métriques clés en respectant strictement les règles.`;
+Produis executiveSummary, justification et limitationNote en respectant strictement les règles.`;
 
   return callClaude({
     system: P1_SYSTEM_PROMPT,
     user,
-    maxTokens: 1200,
+    maxTokens: 1000,
     outputSchema: P1_OUTPUT_SCHEMA,
   });
 }
@@ -669,8 +677,13 @@ async function runP1() {
     },
   };
 
-  const result = await scoreVerdict(input);
-  console.log("--- P1 score & verdict (Claude, structuré) ---\n");
+  const { computeScore } = require("./scoring");
+  const scored = computeScore(input);
+  console.log("--- P1 score déterministe (scoring.js) ---\n");
+  console.log(JSON.stringify({ score: scored.score, verdict: scored.verdict, keyMetrics: scored.keyMetrics, vetoes: scored.breakdown.vetoes }, null, 2));
+
+  const result = await writeVerdictSummary({ ...input, ...scored });
+  console.log("\n--- P1 prose (Claude) ---\n");
   console.log(JSON.stringify(result.json, null, 2));
   console.log("\n[tokens] in:", result.usage?.input_tokens, "out:", result.usage?.output_tokens);
 }
@@ -690,6 +703,6 @@ module.exports = {
   competitiveSynthesis,
   sectorAdequacy,
   riskSignals,
-  scoreVerdict,
+  writeVerdictSummary,
   zoneSynthesis,
 };

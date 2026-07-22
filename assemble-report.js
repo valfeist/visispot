@@ -32,8 +32,9 @@ const {
   buildCompetitorsMapUrl,
   downloadMap,
 } = require("./static-maps");
-const { competitiveSynthesis, sectorAdequacy, riskSignals, scoreVerdict, zoneSynthesis } =
+const { competitiveSynthesis, sectorAdequacy, riskSignals, writeVerdictSummary, zoneSynthesis } =
   require("./llm-synthesis");
+const { computeScore } = require("./scoring");
 const { buildReportHtml } = require("./report-builder");
 
 const OUTPUT_DIR = path.join(__dirname, "output");
@@ -178,13 +179,13 @@ async function main() {
   })).json;
 
   // P1 runs BEFORE P5 so its verdict + signals can feed the P5/P1 liaison.
-  console.log("Appel LLM P1 (score & verdict)...");
-  const p1 = (await scoreVerdict({
+  // The score/verdict/keyMetrics are computed DETERMINISTICALLY (scoring.js);
+  // the LLM only writes the executive prose from that breakdown.
+  const p1Input = {
     businessType: order.businessType,
     targetAudience: order.targetAudience,
     zone: { commune: zone.commune?.name, population: zone.commune?.population, covered: zone.covered },
     dataQuality: { places: placesStatus, iris: agg10.quality, besttime: "insuffisant" },
-    flux: { status: "insuffisant" },
     competition: {
       radiusPrimary: radii.radius_primary,
       directPrimary: primary.direct.length,
@@ -205,7 +206,20 @@ async function main() {
       worksUnknown: true,
       rentUnknown: true,
     },
-  })).json;
+  };
+
+  const scored = computeScore(p1Input);
+  console.log(`Score déterministe : ${scored.score}/10 · ${scored.verdict}` + (scored.breakdown.vetoes.length ? ` (vetos : ${scored.breakdown.vetoes.join(", ")})` : ""));
+
+  console.log("Appel LLM P1 (rédaction du verdict)...");
+  const p1Prose = (await writeVerdictSummary({ ...p1Input, ...scored })).json;
+  const p1 = {
+    score: scored.score,
+    verdict: scored.verdict,
+    keyMetrics: scored.keyMetrics,
+    scoreBreakdown: scored.breakdown,
+    ...p1Prose,
+  };
 
   console.log("Appel LLM P5 (adéquation sectorielle)...");
   const p5 = (await sectorAdequacy({
