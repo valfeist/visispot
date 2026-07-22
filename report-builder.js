@@ -84,11 +84,12 @@ function page(meta, pageNumber, inner) {
 
 // --- key-metric badges (P1) -----------------------------------------
 
-function metricCard(label, value, detailPage) {
+function metricCard(label, value, detailPage, badge = null) {
   const color = VERDICT_COLOR[value] || "#1a1a1a";
   return `<div class="metric">
     <div class="metric-label">${esc(label)}</div>
     <div class="metric-value" style="color:${color}">${esc(value)}</div>
+    ${badge ? `<div class="metric-badge">${esc(badge)}</div>` : ""}
     <a class="metric-detail" href="#page-${detailPage}">→ détail p. ${detailPage}</a>
   </div>`;
 }
@@ -219,7 +220,7 @@ function buildPage1(meta, p1, order, dataQuality) {
     </div>
     <p class="exec">${richText(p1.executiveSummary)}</p>
     <div class="metrics">
-      ${metricCard("Flux estimé", p1.keyMetrics.flux, 2)}
+      ${metricCard("Flux estimé", p1.keyMetrics.flux, 2, dataQuality.bestTime === "insuffisant" ? "estimé · non mesuré" : null)}
       ${metricCard("Profil démographique", p1.keyMetrics.demographicProfile, 3)}
       ${metricCard("Concurrence directe", p1.keyMetrics.directCompetition, 4)}
       ${metricCard("Risques identifiés", p1.keyMetrics.risks, 6)}
@@ -437,6 +438,7 @@ const STYLES = `
   .metric { height: 84px; border: 1px solid #e3e3e3; border-radius: 6px; background: #fafbfc; padding: 3mm 4mm; display: flex; flex-direction: column; }
   .metric-label { font-size: 8.5pt; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
   .metric-value { font-size: 13pt; font-weight: 700; margin-top: 1mm; flex-shrink: 0; }
+  .metric-badge { display: inline-block; margin-top: 1mm; padding: 0.3mm 1.6mm; font-size: 6.5pt; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; color: #8a6d00; background: #fff3cd; border: 1px solid #f0d675; border-radius: 3px; align-self: flex-start; }
   .metric-detail { margin-top: auto; align-self: flex-end; font-size: 7pt; color: #aaa; text-decoration: none; }
   .limitation { background: #fff8e1; border: 1px solid #f5c000; border-radius: 6px; padding: 3mm 4mm; font-size: 9pt; margin-bottom: 4mm; }
   .p1-footer { margin-top: auto; border-top: 1px solid #eee; padding-top: 3mm; }
