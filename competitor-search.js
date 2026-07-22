@@ -21,6 +21,10 @@ const { SECTOR_CONFIG } = require("./sector_config");
 const { MARKET_CONFIG } = require("./market_config");
 // We import the false-positive exclusion terms (exclusion-lists.js).
 const { EXCLUSION_LISTS } = require("./exclusion-lists");
+// Sector -> Places (New) primaryType whitelist/blacklist + OSM tags + name
+// heuristics. This is the source of truth for "is this place a same-sector
+// competitor?" (kills the cross-sector contamination).
+const { SECTOR_TYPE_MAPPING, matchesSector } = require("./sector-type-mapping");
 
 const GOOGLE_API_KEY = process.env.GOOGLE_PLACES_API_KEY;
 
@@ -56,6 +60,16 @@ const GOOGLE_TYPES_BY_SECTOR = {
   pressing: ["laundry"],
   services_personne: ["laundry"],
 };
+
+// Types sent to Google's `includedTypes`. Prefer the mapping whitelist (New
+// primaryTypes), dropping MATCH:* patterns (Google only accepts concrete
+// types — the wildcard is enforced later by matchesSector). Falls back to the
+// legacy table for any sector not yet in the mapping (reconciled in P0.4).
+function includedTypesForSector(sector) {
+  const cfg = SECTOR_TYPE_MAPPING[sector];
+  if (cfg) return cfg.google_include.filter((t) => !t.startsWith("MATCH:"));
+  return GOOGLE_TYPES_BY_SECTOR[sector];
+}
 
 // =====================================================================
 // BLOCK 2b — Resolve radii for the requested sector
@@ -145,6 +159,9 @@ function formatCompetitor(place) {
     name: place.displayName?.text ?? "Unknown name",
     placeId: place.id ?? null,
     address: place.formattedAddress ?? null,
+    // Raw Google types kept for classification + the contamination guard-rail.
+    primaryType: place.primaryType ?? null,
+    types: place.types ?? [],
     googleRating: place.rating ?? null,
     reviewCount: place.userRatingCount ?? null,
     status: place.businessStatus ?? "UNKNOWN", // OPERATIONAL / CLOSED_TEMPORARILY / CLOSED_PERMANENTLY
@@ -244,21 +261,114 @@ function matchesExclusionTerm(name, term) {
 }
 
 // =====================================================================
+// BLOCK 5c bis — Deduplication (place_id, then name + proximity)
+// =====================================================================
+// Google can return the same shop twice (e.g. "L'Atelier du Sourcil" at 559 m
+// and 565 m). We drop exact place_id repeats, then near-duplicates: same
+// normalized name within 25 m of each other.
+
+const DEDUP_METERS = 25;
+
+function metersBetween(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function normalizeName(name) {
+  return (name || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function dedupeCompetitors(competitors) {
+  const byId = [];
+  const seenId = new Set();
+  for (const c of competitors) {
+    if (c.placeId && seenId.has(c.placeId)) continue;
+    if (c.placeId) seenId.add(c.placeId);
+    byId.push(c);
+  }
+  const out = [];
+  for (const c of byId) {
+    const isNearDup = out.some(
+      (o) =>
+        normalizeName(o.name) === normalizeName(c.name) &&
+        o.latitude != null && o.longitude != null && c.latitude != null && c.longitude != null &&
+        metersBetween(o.latitude, o.longitude, c.latitude, c.longitude) < DEDUP_METERS
+    );
+    if (!isNearDup) out.push(c);
+  }
+  return out;
+}
+
+// =====================================================================
+// BLOCK 5c ter — Contamination guard-rail (cross-sector, all sectors)
+// =====================================================================
+// Flags every competitor whose primaryType is NOT in the sector whitelist.
+// This is the automatic cross-sector detector: it surfaces bleed (e.g. a
+// nail_salon returned for a coiffure scan) without any manual review.
+
+function inSectorWhitelist(primaryType, sector) {
+  const cfg = SECTOR_TYPE_MAPPING[sector];
+  if (!cfg) return true; // no mapping yet (pre-P0.4): cannot judge
+  return cfg.google_include.some((rule) =>
+    rule.startsWith("MATCH:")
+      ? (primaryType || "").endsWith(rule.slice(6).replace("*", ""))
+      : rule === primaryType
+  );
+}
+
+function detectContamination(competitors, sector) {
+  return competitors
+    .filter((c) => !inSectorWhitelist(c.primaryType, sector))
+    .map((c) => ({ name: c.name, primaryType: c.primaryType, types: c.types }));
+}
+
+// =====================================================================
 // BLOCK 5c — Competitor classification
 // =====================================================================
-// Sorts Google results into three groups using the sector exclusion
-// list. Each list entry is { name, category, reason }; matching is a
-// lowercase partial (substring) match, first match wins:
-//   - no match              -> direct   (independent same-sector)
-//   - category "chain"      -> chain    (franchise / industrial model)
-//   - category "false_positive" -> filteredOut (technical false positive)
-// Matched items keep the matched term + reason for the manual P4 review.
+// Two axes, in order:
+//   1. Relevance (mapping): is this place a same-sector competitor? Judged on
+//      primaryType via the sector whitelist/blacklist (+ name heuristics for
+//      the laundry family, name denylist for coiffure). Off-sector -> filtered.
+//   2. Chain vs direct: among relevant places, the exclusion list separates
+//      franchises (chain) and technical false positives (filteredOut).
+// Input is deduplicated first.
 
-function classifyCompetitors(competitors, exclusionEntries) {
+function classifyCompetitors(competitors, sector, exclusionEntries = []) {
+  const deduped = dedupeCompetitors(competitors);
+  const hasMapping = Boolean(SECTOR_TYPE_MAPPING[sector]);
   const direct = [];
   const chain = [];
   const filteredOut = [];
-  for (const competitor of competitors) {
+
+  for (const competitor of deduped) {
+    // 1. Relevance gate (skipped only for sectors without a mapping yet).
+    if (
+      hasMapping &&
+      !matchesSector(
+        { primaryType: competitor.primaryType, types: competitor.types, displayName: competitor.name },
+        sector
+      )
+    ) {
+      filteredOut.push({
+        ...competitor,
+        matchedTerm: null,
+        reason: `hors périmètre secteur (primaryType=${competitor.primaryType ?? "?"})`,
+      });
+      continue;
+    }
+
+    // 2. Chain vs direct vs technical false positive (exclusion list).
     const match = exclusionEntries.find((entry) =>
       matchesExclusionTerm(competitor.name, entry.name)
     );
@@ -288,7 +398,7 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
         "Content-Type": "application/json",
         "X-Goog-Api-Key": GOOGLE_API_KEY,
         "X-Goog-FieldMask":
-          "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.location,places.regularOpeningHours",
+          "places.id,places.displayName,places.primaryType,places.types,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.location,places.regularOpeningHours",
       },
       body: JSON.stringify({
         includedTypes: googleTypes,
@@ -324,8 +434,8 @@ async function main() {
   // 6.0 — Load the market configuration at startup (defaults to "FR").
   const { market, config: marketConfig } = getMarketConfig(order.market);
 
-  // 6.1 — Translate the form sector into Google types.
-  const googleTypes = GOOGLE_TYPES_BY_SECTOR[order.businessType];
+  // 6.1 — Translate the form sector into Google types (mapping whitelist).
+  const googleTypes = includedTypesForSector(order.businessType);
   if (!googleTypes) {
     throw new Error(
       `Sector "${order.businessType}" not handled. Known sectors: ${Object.keys(GOOGLE_TYPES_BY_SECTOR).join(", ")}`
@@ -355,9 +465,17 @@ async function main() {
   // 6.5 — Resolve the exclusion entries for this sector (empty if none yet).
   const exclusionEntries = EXCLUSION_LISTS[order.businessType] ?? [];
 
+  // 6.5b — Contamination guard-rail: warn on any raw result whose primaryType
+  // is outside the sector whitelist (cross-sector bleed detector).
+  const contamination = detectContamination(primaryCompetitors, order.businessType);
+  if (contamination.length) {
+    console.warn(`⚠️  Contamination détectée (${contamination.length}) : ` +
+      contamination.map((c) => `${c.name} [${c.primaryType}]`).join(", "));
+  }
+
   // 6.6 — Classify competitors (direct / chain / false positive), then build blocks.
-  const primaryClassified = classifyCompetitors(primaryCompetitors, exclusionEntries);
-  const secondaryClassified = classifyCompetitors(secondaryCompetitors, exclusionEntries);
+  const primaryClassified = classifyCompetitors(primaryCompetitors, order.businessType, exclusionEntries);
+  const secondaryClassified = classifyCompetitors(secondaryCompetitors, order.businessType, exclusionEntries);
   const primaryBlock = buildRadiusBlock(radii.radius_primary, primaryClassified);
   const secondaryBlock = buildRadiusBlock(radii.radius_secondary, secondaryClassified);
 
@@ -421,6 +539,9 @@ module.exports = {
   geocodeAddress,
   searchCompetitors,
   classifyCompetitors,
+  dedupeCompetitors,
+  detectContamination,
   matchesExclusionTerm,
+  includedTypesForSector,
   GOOGLE_TYPES_BY_SECTOR,
 };

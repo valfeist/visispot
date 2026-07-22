@@ -488,7 +488,7 @@ const TEST_BUSINESS = "boulangerie";
 
 // Task 2 (P4): assemble real competitor + density data, then synthesize.
 async function runP4() {
-  const { geocodeAddress, searchCompetitors, classifyCompetitors, GOOGLE_TYPES_BY_SECTOR } =
+  const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector } =
     require("./competitor-search");
   const { SECTOR_CONFIG } = require("./sector_config");
   const { EXCLUSION_LISTS } = require("./exclusion-lists");
@@ -496,15 +496,17 @@ async function runP4() {
 
   const loc = await geocodeAddress(TEST_ADDRESS);
   const radii = SECTOR_CONFIG[TEST_BUSINESS];
-  const types = GOOGLE_TYPES_BY_SECTOR[TEST_BUSINESS];
+  const types = includedTypesForSector(TEST_BUSINESS);
   const entries = EXCLUSION_LISTS[TEST_BUSINESS] ?? [];
 
   const primary = classifyCompetitors(
     await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types),
+    TEST_BUSINESS,
     entries
   );
   const secondary = classifyCompetitors(
     await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types),
+    TEST_BUSINESS,
     entries
   );
   const density = await getCommercialDensity(loc.latitude, loc.longitude);
@@ -607,7 +609,7 @@ async function runP6() {
 
 // Task 1 (P1): assemble the full consolidated metrics, then score & verdict.
 async function runP1() {
-  const { geocodeAddress, searchCompetitors, classifyCompetitors, GOOGLE_TYPES_BY_SECTOR } =
+  const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector } =
     require("./competitor-search");
   const { validateZone } = require("./zone-validation");
   const { getIsochrones } = require("./isochrones");
@@ -621,14 +623,16 @@ async function runP1() {
   const zone = await validateZone({ latitude: loc.latitude, longitude: loc.longitude, market: "FR" });
 
   const radii = SECTOR_CONFIG[TEST_BUSINESS];
-  const types = GOOGLE_TYPES_BY_SECTOR[TEST_BUSINESS];
+  const types = includedTypesForSector(TEST_BUSINESS);
   const entries = EXCLUSION_LISTS[TEST_BUSINESS] ?? [];
   const primary = classifyCompetitors(
     await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types),
+    TEST_BUSINESS,
     entries
   );
   const secondary = classifyCompetitors(
     await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types),
+    TEST_BUSINESS,
     entries
   );
 

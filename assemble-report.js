@@ -13,7 +13,7 @@ require("./load-env");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { geocodeAddress, searchCompetitors, classifyCompetitors, GOOGLE_TYPES_BY_SECTOR } =
+const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector, detectContamination } =
   require("./competitor-search");
 const { validateZone } = require("./zone-validation");
 const { getIsochrones } = require("./isochrones");
@@ -96,16 +96,21 @@ async function main() {
 
   // --- 2. Competitors -----------------------------------------------
   const radii = SECTOR_CONFIG[order.businessType];
-  const types = GOOGLE_TYPES_BY_SECTOR[order.businessType];
+  const types = includedTypesForSector(order.businessType);
   const entries = EXCLUSION_LISTS[order.businessType] ?? [];
-  const primary = classifyCompetitors(
-    await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types),
-    entries
-  );
-  const secondary = classifyCompetitors(
-    await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types),
-    entries
-  );
+  const primaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types);
+  const secondaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types);
+
+  // Contamination guard-rail: flag any raw result whose primaryType is outside
+  // the sector whitelist (cross-sector bleed detector, all sectors).
+  const contamination = detectContamination(primaryRaw, order.businessType);
+  if (contamination.length) {
+    console.warn(`⚠️  Contamination filtrée (${contamination.length}) : ` +
+      contamination.map((c) => `${c.name} [${c.primaryType}]`).join(", "));
+  }
+
+  const primary = classifyCompetitors(primaryRaw, order.businessType, entries);
+  const secondary = classifyCompetitors(secondaryRaw, order.businessType, entries);
   const placesStatus = primary.direct.length + primary.chain.length < 3 ? "partielle" : "complete";
 
   // --- 3. Isochrones + demographics ---------------------------------
@@ -302,6 +307,9 @@ async function main() {
       bestTime: "insuffisant",
       mapbox: "complete",
       openrouteservice: "complete",
+      // Cross-sector contamination filtered out of the primary radius (guard-rail).
+      contaminationFiltered: contamination.length,
+      contaminationSample: contamination.slice(0, 8),
     },
     p1,
     p2: {
