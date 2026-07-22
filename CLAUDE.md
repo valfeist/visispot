@@ -80,7 +80,7 @@ Une commande (`assemble-report.js`) orchestre tout.
 | `competitor-search.js` | Concurrents (Nearby Search New) + géocodage. **Filtrage par `primaryType` via la table**, **dédup** (place_id puis nom+proximité <25 m), **garde-fou contamination** (`detectContamination`, cross-secteur). Axe chaîne/direct via `exclusion-lists`. | Google Places |
 | `zone-validation.js` | Commune ≥ seuil population (refus/veto si <). | geo.api.gouv.fr (INSEE) |
 | `isochrones.js` | Zones de marche 5/10 min. | Openrouteservice |
-| `demographics.js` | Agrégation population/âge/revenus/logement par IRIS, **pondérée par la part surfacique** de chaque IRIS. CSV nationaux dans `data/`. | INSEE CSV (locaux) |
+| `demographics.js` | Agrégation population/âge/revenus/logement par IRIS, **pondérée par la part surfacique** de chaque IRIS. CSV nationaux dans `data/`. **Millésime par dimension** : population/logement RP 2022, revenus Filosofi 2021 (dernier dispo à l'IRIS). | INSEE CSV (locaux) |
 | `iris-geometry.js` | Adresse/isochrone → IRIS. `findIrisWeightsInPolygon()` renvoie `[{code, weight}]` ; `irisAreaWeight()` = intersection par grille déterministe (point-dans-polygone local). | OpenDataSoft `georef-france-iris` |
 | `commercial-density.js` | Densité commerciale 300/500/1000 m par catégorie (+ `queryOverpass`, miroirs + retry). | Overpass/OSM |
 | `street-context.js` | P2 — type de rue, transports (300 m), stationnement (200 m), visibilité. | Overpass/OSM |
@@ -93,7 +93,7 @@ Une commande (`assemble-report.js`) orchestre tout.
 
 ### Données & sorties (gitignorées)
 
-- `data/` — CSV INSEE nationaux **2021** (population, logement, Filosofi revenus). ~130 Mo, re-téléchargeables. **Non versionné.**
+- `data/` — CSV INSEE nationaux : population + logement **RP 2022** (`base-ic-*-2022`, géo 01/01/2024) ; revenus **Filosofi 2021** (`BASE_TD_FILO_IRIS_2021_DISP.csv`, dernier millésime à l'IRIS). ~130 Mo, re-téléchargeables. **Non versionné.**
 - `output/` — rapports générés. **Non versionné.**
 
 ## Score & verdict (déterministe)
@@ -124,11 +124,12 @@ Voir `CONVENTIONS.md`. En résumé :
 - **BODACC** : fenêtre glissante **ancrée sur des mois calendaires complets** → reproductible.
 - **Flux (P1/P2/P5)** : BestTime souvent insuffisant → estimation qualitative via densité (proxy), badge « estimé · non mesuré » en P1, jamais de nombre inventé.
 - **Adresse du titre** : adresse **géocodée** (normalisée), pas la saisie brute.
-- **Géométrie IRIS** : à la demande via OpenDataSoft (le GeoJSON national >1 Go est impraticable).
+- **Géométrie IRIS** : à la demande via OpenDataSoft, **millésime pinné à `year=date'2024'`** (géo 01/01/2024, alignée sur le RP 2022 ; évite de mélanger un futur millésime). Le GeoJSON national >1 Go est impraticable.
+- **Millésime des données démographiques** : pris **par dimension** (le plus récent que l'INSEE publie *à l'IRIS*). Population/logement = **RP 2022**. Revenus = **Filosofi 2021** : l'INSEE a **sauté 2022** (qualité) et **ne diffuse pas Filosofi 2 (2023) à l'IRIS** (commune et au-dessus seulement). Ne pas mélanger Filosofi 1 (2021) et 2 (2023) : méthodologies non comparables. Millésimes affichés au lecteur en P3.
 
 ## Tâches en attente / pistes
 
-- **Migration INSEE 2023** (session dédiée) : Filosofi 2 (revenus, **rupture de schéma** — remapping de colonnes) + RP **2022** à l'IRIS (population, âge, occupation) + **contours IRIS** au bon millésime + afficher le millésime dans le rapport. Revalider les 3 adresses de test. TODO dans `demographics.js` (`P21_*` → `P23_*`).
+- **~~Migration INSEE 2023~~ — FAIT** (branche `feature/insee-2023`) : population/logement passés au **RP 2022** (colonnes positionnellement identiques à 2021, `P21_*`→`P22_*`), contours IRIS pinnés à `year=2024`, millésimes affichés en P3. **Revenus restés à Filosofi 2021** : 2022 sauté par l'INSEE, Filosofi 2 2023 non publié à l'IRIS (constat vérifié 2026-07). Reste ouvert : re-sourcer les revenus à l'IRIS quand/si l'INSEE republie ce grain ; sinon envisager un fallback communal 2023 **explicitement étiqueté** (déconseillé pour l'instant, casse la granularité intra-ville).
 - **Benchmarks `sector-benchmarks.js`** (session dédiée) : sourcer les fourchettes de CA (dont laverie/retouche). Méthode retenue : table `secteur → code NAF` puis INSEE ESANE / Pappers (API, empirique) / FCGA / fédérations ; CA/m² via surface moyenne (Procos) ou reframe.
 - **Loyer de marché de référence** : DVF ne convient pas (vente) ; nécessite une source de loyers commerciaux (SeLoger Pro/Idealista, **payant**). Décision de source requise.
 - **Travaux de voirie (P2)** : brancher l'open data par métropole (Bordeaux Métropole, data.gouv chantiers) ; ne couvre que les grandes villes.
@@ -142,3 +143,4 @@ Voir `CONVENTIONS.md`. En résumé :
 
 - **PR #1 — P0** (5 items) : scoreur déterministe (P0.1), fenêtre BODACC (P0.2), filtrage concurrents + dédup + garde-fou contamination (P0.3), assertion des clés secteur / périmètre 10 secteurs (P0.4), rayon inter-communes (P0.5 : aucun changement, hypothèse infirmée).
 - **PR #2 — P1/P2** (4 items) : badge flux « estimé · non mesuré », adresse du titre normalisée, sources étiquetées + réconciliation OSM/Google, pondération surfacique des IRIS.
+- **`feature/insee-2023` — Tâche E** : migration démographie au RP 2022 (population/logement), contours IRIS pinnés à 2024, millésimes affichés en P3. Revenus restés Filosofi 2021 (2023 non diffusé à l'IRIS). Validé offline (31 tests + deltas 2021→2022 cohérents, Bordeaux +1,35 %).
