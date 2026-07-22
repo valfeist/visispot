@@ -330,7 +330,7 @@ function buildPage3(meta, p3) {
     </table>
     <h3>Répartition par âge (zone 10 min)</h3>
     ${ageBarsSvg(p3.ageBreakdown)}
-    <h3>Densité commerciale</h3>
+    <h3>Densité commerciale <span class="src">source OpenStreetMap</span></h3>
     <table class="data"><thead><tr><th>Rayon</th><th>Total</th><th>Principales catégories</th></tr></thead>
       <tbody>${densityRows(p3.densityRings)}</tbody></table>
     ${p3.densityInterpretation ? `<p class="density-interp">${richText(p3.densityInterpretation)}</p>` : ""}
@@ -344,11 +344,12 @@ function buildPage4(meta, p4) {
   return page(meta, 4, `
     <h2>Analyse concurrentielle</h2>
     ${p4.mapFile ? `<img class="map" src="${esc(p4.mapFile)}" alt="Carte des concurrents"/>` : ""}
-    <h3>Concurrence — rayon ${p4.radiusPrimary} m</h3>
+    <h3>Concurrence — rayon ${p4.radiusPrimary} m <span class="src">source Google Places</span></h3>
     <table class="data concurrence">
       <thead><tr><th>N°</th><th>Nom</th><th>Distance</th><th>Concurrence</th><th>Note Google</th><th>Horaires</th></tr></thead>
       <tbody>${concurrenceRows(p4.directPrimary, p4.chainPrimary)}</tbody>
     </table>
+    <div class="note muted">Deux compteurs, deux usages : la « densité commerciale » (page 3, source OpenStreetMap) recense l'ensemble des commerces d'une catégorie sur un rayon plus large et dépend de l'exhaustivité d'OpenStreetMap ; le comptage ci-dessus (source Google Places) ne retient que les concurrents directs nommés dans la zone de chalandise et fait foi pour l'analyse concurrentielle.</div>
     ${complementarities ? `<h3>Complémentarités</h3><p>${richText(complementarities)}</p>` : ""}
     <div class="zone-summary"><div class="zone-summary-label">Synthèse concurrentielle</div>${richText(p4.synthesis)}</div>
   `);
@@ -455,6 +456,7 @@ const STYLES = `
   .map { width: 100%; height: auto; border: 1px solid #e3e3e3; border-radius: 6px; margin: 3mm 0; }
   /* P3 specifics */
   .density-interp { font-size: 9.5pt; margin: 2mm 0; }
+  .src { font-size: 7.5pt; font-weight: 400; color: #999; font-style: italic; margin-left: 2mm; }
   .zone-summary { background: #f2f6fc; border-radius: 6px; padding: 3mm 4mm; margin-top: 3mm; font-size: 9.5pt; }
   .zone-summary-label { font-size: 8pt; text-transform: uppercase; letter-spacing: .3px; color: ${ACCENT}; font-weight: 700; margin-bottom: 1.5mm; }
   .verdict-adeq { margin: 4mm 0 2mm; font-size: 11pt; }
