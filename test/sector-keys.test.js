@@ -18,10 +18,17 @@ function test(name, fn) {
 
 const asSet = (keys) => Object.fromEntries(keys.map((k) => [k, 1]));
 
-test("MVP perimeter is exactly 10 sectors, without services_personne", () => {
-  assert.strictEqual(MVP_SECTORS.length, 10);
+test("MVP perimeter is exactly 17 sectors, without services_personne", () => {
+  assert.strictEqual(MVP_SECTORS.length, 17);
   assert.ok(!MVP_SECTORS.includes("services_personne"));
   for (const k of ["pressing", "laverie", "retouche"]) assert.ok(MVP_SECTORS.includes(k));
+  // Taxonomy extension: the 7 sectors added on top of the original perimeter.
+  for (const k of ["cafe", "boucherie", "fleuriste", "primeur", "fromagerie",
+                   "poissonnerie", "cordonnerie"]) {
+    assert.ok(MVP_SECTORS.includes(k), `${k} missing from the MVP perimeter`);
+  }
+  // No duplicate keys (the list is grouped by family, easy to fat-finger).
+  assert.strictEqual(new Set(MVP_SECTORS).size, MVP_SECTORS.length);
 });
 
 test("real configs are consistent: assertSectorKeyConsistency does not throw", () => {

@@ -84,4 +84,93 @@ test("garment-care: pressing kept, laverie filtered by name heuristic on laundry
   assert.deepStrictEqual(direct.map((d) => d.name), ["Pressing Net Service"]);
 });
 
+// --- Taxonomy extension (17 sectors) -----------------------------------------
+
+test("snacking keeps fast_food_restaurant (MATCH:*_restaurant no longer evicts it)", () => {
+  const places = [
+    P("Snack du Coin", "fast_food_restaurant", 0),
+    P("Chez Hot Dog", "hot_dog_restaurant", 2),
+    P("Le Bistrot Assis", "italian_restaurant", 4),
+  ];
+  const { direct } = classifyCompetitors(places, "snacking", []);
+  const names = direct.map((d) => d.name).sort();
+  // The two snacking types are kept; the sit-down restaurant is still rejected.
+  assert.deepStrictEqual(names, ["Chez Hot Dog", "Snack du Coin"]);
+});
+
+test("epicerie_fine no longer counts a butcher as a direct competitor", () => {
+  const places = [
+    P("Épicerie Fine du Marché", "grocery_store", 0),
+    P("Boucherie Martin", "butcher_shop", 2),
+  ];
+  const { direct } = classifyCompetitors(places, "epicerie_fine", []);
+  assert.deepStrictEqual(direct.map((d) => d.name), ["Épicerie Fine du Marché"]);
+});
+
+test("epicerie_fine name_denylist rejects a loosely typed specialised trade", () => {
+  // Google types some specialised shops as grocery_store; the name must win.
+  const places = [P("Fromagerie Dubois", "grocery_store", 0)];
+  const { direct } = classifyCompetitors(places, "epicerie_fine", []);
+  assert.strictEqual(direct.length, 0, "a fromagerie must not count as épicerie fine");
+});
+
+
+
+test("epicerie_fine declares text_queries (Nearby alone returns zero live)", () => {
+  const { SECTOR_TYPE_MAPPING } = require("../sector-type-mapping");
+  const q = SECTOR_TYPE_MAPPING.epicerie_fine.text_queries;
+  assert.ok(Array.isArray(q) && q.length > 0, "epicerie_fine needs keyword queries");
+  // The types those searches return must already be whitelisted, otherwise the
+  // extra calls would be filtered out again.
+  for (const t of ["grocery_store", "deli", "food_store"]) {
+    assert.ok(SECTOR_TYPE_MAPPING.epicerie_fine.google_include.includes(t), `${t} must stay whitelisted`);
+  }
+});
+
+test("every name-classified sector declares text_queries", () => {
+  const { SECTOR_TYPE_MAPPING } = require("../sector-type-mapping");
+  for (const [key, cfg] of Object.entries(SECTOR_TYPE_MAPPING)) {
+    if (cfg.classify_by !== "name") continue;
+    assert.ok(cfg.google_include.length === 0, `${key}: google_include must stay empty`);
+    assert.ok(cfg.text_queries?.length > 0, `${key}: no text_queries -> zero discovery`);
+    assert.ok(cfg.name_include?.length > 0, `${key}: name gate is the only filter`);
+  }
+});
+
+// --- Service-format markers (principle 1b) -----------------------------------
+// primaryType encodes cuisine, types[] carries the format. Verified live:
+// KFC is typed `restaurant`, Peppone (sit-down, delivers) is too.
+const T = (name, primaryType, types) => ({ displayName: name, primaryType, types });
+
+test("fast-food marker in types[] moves a place from restauration to snacking", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  const kfc = T("KFC Bordeaux", "restaurant", ["restaurant", "fast_food_restaurant"]);
+  const bw = T("Black & White Burger", "hamburger_restaurant",
+               ["hamburger_restaurant", "fast_food_restaurant", "meal_takeaway"]);
+  for (const p of [kfc, bw]) {
+    assert.ok(matchesSector(p, "snacking"), `${p.displayName} must count as snacking`);
+    assert.ok(!matchesSector(p, "restauration"), `${p.displayName} must leave restauration`);
+  }
+});
+
+test("a sit-down restaurant that merely delivers stays in restauration", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  // Peppone: meal_takeaway/meal_delivery but NO fast_food_restaurant marker.
+  const peppone = T("Peppone", "restaurant",
+                    ["restaurant", "pizza_delivery", "meal_delivery", "meal_takeaway"]);
+  assert.ok(matchesSector(peppone, "restauration"), "sit-down italian belongs to restauration");
+  assert.ok(!matchesSector(peppone, "snacking"), "delivery alone must not make it snacking");
+});
+
+test("the marker never overrides a hard google_exclude", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  // A bakery selling sandwiches can carry the marker: it must NOT become snacking.
+  const bakery = T("Maison Lamour", "bakery", ["bakery", "fast_food_restaurant"]);
+  assert.ok(!matchesSector(bakery, "snacking"), "bakery is excluded before the marker is read");
+  assert.ok(matchesSector(bakery, "boulangerie"), "and it stays a bakery");
+  // Same for grocery retail: observed live, a Carrefour City carries the marker.
+  const conv = T("Carrefour City", "supermarket", ["supermarket", "fast_food_restaurant"]);
+  assert.ok(!matchesSector(conv, "snacking"), "grocery retail is never a snacking competitor");
+});
+
 console.log(`\n${passed} tests passed.`);

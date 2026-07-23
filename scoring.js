@@ -26,19 +26,42 @@ const VERDICT_CUTOFF = 5.5; // score >= cutoff AND no veto => VIABLE
 
 // Direct-competitor count (primary radius) at which competition becomes
 // "Dense" for the sector. Chains count for half a direct competitor.
-// NOTE: to be re-checked after P0.3 (contamination inflates these counts).
+//
+// ⚠️ PROVISIONAL — these are NOT statistically calibrated. Measured on 6
+// contrasting locations (2 cities), four were plainly broken and were corrected:
+// coiffure and beaute fired in EVERY zone (so the pillar could never reward a
+// quiet street), primeur and pressing fired in NONE (so it could never penalise
+// a saturated one). The other 13 are unchanged for lack of evidence.
+//
+// A real calibration was attempted and abandoned on purpose — see CLAUDE.md:
+// the count saturates at Google's 20-result cap, and NAF-based national
+// densities proved unusable (a NAF code is broader than a trade: 47.76Z bundles
+// florists with garden centres and pet shops; 96.01B covers pressing AND
+// laverie). Ground truth (locations whose outcome is known) is what this needs.
 const DEFAULT_DENSE_MIN = 5;
 const COMPETITION_DENSE_MIN = {
   boulangerie: 5,
   restauration: 8,
   snacking: 8,
-  coiffure: 6,
-  beaute: 6,
+  // Fired in all 6 measured zones (8 to 16 competitors), including periurban:
+  // raised so a genuinely quiet street can still read Modérée. Kept below the
+  // observed median rather than at the top of the range, to stay pessimistic.
+  coiffure: 12,
+  beaute: 10,
   epicerie_fine: 5,
   caviste: 4,
-  pressing: 4,
+  pressing: 3,  // never fired: max observed 3
   laverie: 4,
   retouche: 4,
+  // Taxonomy extension. Specialised trades saturate faster than a generalist
+  // shop: fewer same-trade competitors are needed to call a zone dense.
+  cafe: 8,
+  boucherie: 4,
+  poissonnerie: 3,
+  primeur: 2,   // never fired: max observed 1
+  fromagerie: 3,
+  cordonnerie: 3,
+  fleuriste: 4,
 };
 
 // How much the local purchasing power (median income) weighs in the
@@ -55,6 +78,14 @@ const INCOME_SENSITIVITY = {
   retouche: "medium",
   snacking: "low",
   laverie: "low",
+  // Taxonomy extension.
+  fleuriste: "medium",
+  boucherie: "medium",
+  primeur: "medium",
+  fromagerie: "high",
+  poissonnerie: "high",
+  cordonnerie: "low",
+  cafe: "medium",
 };
 const DEMO_WEIGHTS = {
   high: { income: 0.55, stability: 0.20, population: 0.25 },
@@ -80,15 +111,32 @@ const round1 = (x) => Math.round(x * 10) / 10;
 // weigh half. Score decreases monotonically as competitors increase, with
 // a floor at 1 (dense competition must hurt, but never zero out the rest).
 
+// A zero competitor count is the single most rewarding input of the whole model
+// (10/10 on the heaviest pillar), so it is also the most dangerous when it comes
+// from a data failure rather than an empty market. Two sectors were found
+// silently returning zero in production. When OSM lists this many same-trade
+// shops nearby, a Google zero is not credible and must not be rewarded.
+// Asymmetric on purpose: OSM coverage is thin for some trades (no pressing or
+// cordonnerie tagged in central Bordeaux), so a LOW OSM count never confirms an
+// absence — it only ever challenges one.
+const OSM_CONTRADICTS_ZERO = 3;
+
 function scoreConcurrence(input, sector) {
   const directPrimary = input.competition.directPrimary ?? 0;
   const chainPrimary = input.competition.chainPrimary ?? 0;
+  const osmSameCategory = input.competition.osmSameCategory ?? null;
+  const capped = Boolean(input.competition.capped);
   const denseMin = COMPETITION_DENSE_MIN[sector] ?? DEFAULT_DENSE_MIN;
   const effective = directPrimary + 0.5 * chainPrimary;
 
   let category;
   let raw;
-  if (effective === 0) {
+  if (effective === 0 && osmSameCategory !== null && osmSameCategory >= OSM_CONTRADICTS_ZERO) {
+    // Contradiction: no competitor found, yet OSM maps several of the same trade.
+    // Neutral score instead of the 10/10 an "empty market" would earn.
+    category = "Indéterminée";
+    raw = 5;
+  } else if (effective === 0) {
     category = "Absente";
     raw = 10;
   } else if (effective < denseMin) {
@@ -101,11 +149,37 @@ function scoreConcurrence(input, sector) {
     raw = clamp(4 - ((effective - denseMin) / denseMin) * 3, 1, 4);
   }
 
+  // Right-censored sample (Google returned a full page): the count is a LOWER
+  // BOUND, so a quiet-looking zone may simply be a truncated one. Never resolve
+  // that optimistically — same principle as the OSM contradiction above.
+  let censorNote = null;
+  if (capped) {
+    if (category === "Absente") {
+      category = "Indéterminée";
+      raw = 5;
+      censorNote = "Recherche saturée (20 résultats) : aucun concurrent retenu après filtrage, mais le voisinage n'a pas pu être exploré en entier.";
+    } else if (raw > 6) {
+      raw = 6;
+      censorNote = "Recherche saturée (20 résultats) : le nombre de concurrents est un minimum, la note est plafonnée en conséquence.";
+    }
+  }
+
   return {
     weight: WEIGHTS.concurrence,
     raw: round1(raw),
     category,
-    inputs: { directPrimary, chainPrimary, effective, denseMin },
+    inputs: {
+      directPrimary,
+      chainPrimary,
+      effective,
+      denseMin,
+      osmSameCategory,
+      capped,
+      ...(censorNote ? { censorNote } : {}),
+      ...(category === "Indéterminée" && !censorNote
+        ? { dataWarning: `0 concurrent trouvé mais ${osmSameCategory} commerces du même type recensés dans OpenStreetMap — donnée à confirmer.` }
+        : {}),
+    },
   };
 }
 

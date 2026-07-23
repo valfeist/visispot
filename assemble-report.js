@@ -13,7 +13,8 @@ require("./load-env");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector, detectContamination } =
+const { geocodeAddress, searchCompetitors,
+  searchCompetitorsForSector, classifyCompetitors, includedTypesForSector, detectContamination } =
   require("./competitor-search");
 const { validateZone } = require("./zone-validation");
 const { getIsochrones } = require("./isochrones");
@@ -24,6 +25,7 @@ const { getStreetContext } = require("./street-context");
 const { getCommercialDynamics } = require("./commercial-dynamics");
 const { getCommercialSaleReference } = require("./market-reference");
 const { SECTOR_CONFIG } = require("./sector_config");
+const { SECTOR_TYPE_MAPPING } = require("./sector-type-mapping");
 const { EXCLUSION_LISTS } = require("./exclusion-lists");
 const { MVP_SECTORS, assertSectorKeyConsistency } = require("./sector-keys");
 const {
@@ -88,6 +90,35 @@ if (!MVP_SECTORS.includes(order.businessType)) {
   process.exit(1);
 }
 
+
+// Counts, in the OSM density ring closest to `radius`, the shops whose category
+// matches the sector's `osm_include` tags. The OSM category is the raw tag value
+// (shop=bakery -> "bakery"), so the mapping's tags can be used directly. Returns
+// null when density is unavailable, so the scorer knows it has no signal.
+function osmSameCategoryCount(sector, density, radius) {
+  const tags = SECTOR_TYPE_MAPPING[sector]?.osm_include ?? [];
+  const rings = Object.values(density?.rings ?? {});
+  if (!rings.length || !tags.length) return null;
+  const ring = rings.reduce((best, r) =>
+    Math.abs(r.radiusMeters - radius) < Math.abs(best.radiusMeters - radius) ? r : best
+  );
+  return tags.reduce((n, t) => n + (ring.byCategory?.[t.split("=")[1]] ?? 0), 0);
+}
+
+// Builds a GeoJSON circle polygon (metres) so the catchment population can be
+// measured on the SAME radius as the competitor search. Using the 5-min
+// isochrone instead would bias sectors whose radius differs from a 5-min walk.
+function circlePolygon(latitude, longitude, radiusMeters, points = 48) {
+  const ring = [];
+  const dLat = radiusMeters / 111320;
+  const dLon = radiusMeters / (111320 * Math.cos((latitude * Math.PI) / 180));
+  for (let i = 0; i <= points; i++) {
+    const a = (2 * Math.PI * i) / points;
+    ring.push([longitude + dLon * Math.cos(a), latitude + dLat * Math.sin(a)]);
+  }
+  return { type: "Polygon", coordinates: [ring] };
+}
+
 async function main() {
   console.log(`Analyse : ${order.address} · secteur "${order.businessType}"\n`);
   // --- 1. Geocode + zone validation ---------------------------------
@@ -102,8 +133,8 @@ async function main() {
   const radii = SECTOR_CONFIG[order.businessType];
   const types = includedTypesForSector(order.businessType);
   const entries = EXCLUSION_LISTS[order.businessType] ?? [];
-  const primaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types);
-  const secondaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types);
+  const primaryRaw = await searchCompetitorsForSector(loc.latitude, loc.longitude, radii.radius_primary, order.businessType);
+  const secondaryRaw = await searchCompetitorsForSector(loc.latitude, loc.longitude, radii.radius_secondary, order.businessType);
 
   // Contamination guard-rail: flag any raw result whose primaryType is outside
   // the sector whitelist (cross-sector bleed detector, all sectors).
@@ -201,6 +232,12 @@ async function main() {
       chainPrimary: primary.chain.length,
       directSecondary: secondary.direct.length,
       densityGlobal1km: density.rings.r1000.total,
+      // Corroboration signal for a zero competitor count (see scoring.js):
+      // how many same-trade shops OSM maps in the closest ring.
+      osmSameCategory: osmSameCategoryCount(order.businessType, density, radii.radius_primary),
+      // Right-censoring: the Google search came back full, so the count is a
+      // lower bound, not a measurement.
+      capped: Boolean(primaryRaw.capped),
     },
     demographics: {
       population: agg10.population.total,

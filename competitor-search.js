@@ -321,6 +321,10 @@ function dedupeCompetitors(competitors) {
 function inSectorWhitelist(primaryType, sector) {
   const cfg = SECTOR_TYPE_MAPPING[sector];
   if (!cfg) return true; // no mapping yet (pre-P0.4): cannot judge
+  // Name-classified sectors have no type whitelist by design: a primaryType can
+  // neither prove nor disprove membership, so type-based contamination is not
+  // judgeable. matchesSector's name gate is what filters them.
+  if (cfg.classify_by === "name") return true;
   return cfg.google_include.some((rule) =>
     rule.startsWith("MATCH:")
       ? (primaryType || "").endsWith(rule.slice(6).replace("*", ""))
@@ -403,7 +407,7 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
       },
       body: JSON.stringify({
         includedTypes: googleTypes,
-        maxResultCount: 20,
+        maxResultCount: GOOGLE_MAX_RESULTS,
         locationRestriction: {
           circle: {
             center: { latitude, longitude },
@@ -424,7 +428,94 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
 
   // If Google returns no "places", there are no competitors.
   const places = data.places ?? [];
-  return places.map(formatCompetitor);
+  const out = places.map(formatCompetitor);
+  // Right-censoring flag (see GOOGLE_MAX_RESULTS): the list came back full.
+  out.capped = places.length >= GOOGLE_MAX_RESULTS;
+  return out;
+}
+
+// Google caps a single search at 20 results and Nearby Search offers no
+// pagination. A search that comes back full is therefore a RIGHT-CENSORED
+// observation: the true count is "at least 20", not 20. The scorer must treat it
+// as a lower bound and never resolve it optimistically.
+const GOOGLE_MAX_RESULTS = 20;
+
+// =====================================================================
+// BLOCK 5e — Text Search (second discovery mode)
+// =====================================================================
+// Why this exists: Nearby Search returns the 20 most PROMINENT places whose
+// `types[]` contain a requested type, but we classify on `primaryType`. For a
+// trade Google does not type distinctly (épicerie fine sits under the same
+// grocery_store bucket as Monoprix), the top 20 fill up with supermarkets,
+// cinemas and bakeries and every genuine shop is filtered out — a live run on
+// Rue Judaïque returned 0 competitors for epicerie_fine. A keyword Text Search
+// finds them instead (L'épicerie 56, Le Comptoir Bordelais...), and they come
+// back with primaryType grocery_store / deli, already in google_include, so no
+// filter change is needed.
+//
+// Caveat handled below: searchText only supports a CIRCLE as locationBias (not
+// as a restriction), so results can fall outside the radius. We filter on the
+// real distance to keep competitor counts honest.
+
+async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQuery) {
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_API_KEY,
+      "X-Goog-FieldMask":
+        "places.id,places.displayName,places.primaryType,places.types,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.location,places.regularOpeningHours",
+    },
+    body: JSON.stringify({
+      textQuery,
+      maxResultCount: GOOGLE_MAX_RESULTS,
+      locationBias: {
+        circle: { center: { latitude, longitude }, radius: radiusMeters },
+      },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `Text search "${textQuery}" failed (HTTP ${response.status}): ${JSON.stringify(data)}`
+    );
+  }
+
+  const raw = data.places ?? [];
+  const kept = raw
+    .map(formatCompetitor)
+    .filter(
+      (c) =>
+        c.latitude !== null &&
+        c.longitude !== null &&
+        metersBetween(latitude, longitude, c.latitude, c.longitude) <= radiusMeters
+    );
+  kept.capped = raw.length >= GOOGLE_MAX_RESULTS;
+  return kept;
+}
+
+// Sector-aware search: Nearby Search, plus a Text Search per `text_queries`
+// entry declared by the sector. Results are merged and deduplicated, then go
+// through the usual classification (no special-casing downstream).
+async function searchCompetitorsForSector(latitude, longitude, radiusMeters, sector) {
+  const types = includedTypesForSector(sector) ?? [];
+  const nearby = types.length
+    ? await searchCompetitors(latitude, longitude, radiusMeters, types)
+    : [];
+  let capped = Boolean(nearby.capped);
+  const collected = [...nearby];
+
+  for (const query of SECTOR_TYPE_MAPPING[sector]?.text_queries ?? []) {
+    const hits = await searchCompetitorsByText(latitude, longitude, radiusMeters, query);
+    capped = capped || Boolean(hits.capped);
+    collected.push(...hits);
+  }
+
+  const merged = dedupeCompetitors(collected);
+  // Any censored underlying search censors the whole count.
+  merged.capped = capped;
+  return merged;
 }
 
 // =====================================================================
@@ -539,6 +630,8 @@ if (require.main === module) {
 module.exports = {
   geocodeAddress,
   searchCompetitors,
+  searchCompetitorsForSector,
+  searchCompetitorsByText,
   classifyCompetitors,
   dedupeCompetitors,
   detectContamination,
