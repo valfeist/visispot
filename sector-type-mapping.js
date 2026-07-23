@@ -16,6 +16,19 @@
  * PRINCIPE DE CLASSIFICATION
  * 1. Un lieu est classé par son `primaryType` (API New). On retombe sur `types[]`
  *    seulement si `primaryType` est absent.
+ * 1b. EXCEPTION — marqueurs de format (`types_any_include` / `types_any_exclude`).
+ *    Les types `*_restaurant` de Google encodent la CUISINE, pas le FORMAT de
+ *    service : `hamburger_restaurant` couvre aussi bien un bistrot assis qu'un
+ *    fast-casual. Le format se lit dans `types[]`. Constaté en réel :
+ *      - KFC            -> primaryType `restaurant`, types[] contient fast_food_restaurant
+ *      - Black & White  -> primaryType `hamburger_restaurant`, idem
+ *      - Peppone (assis)-> primaryType `restaurant`, PAS de fast_food_restaurant
+ *    On lit donc `fast_food_restaurant` n'importe où dans `types[]` comme signal
+ *    de format. NE PAS utiliser `meal_takeaway`/`meal_delivery` : Peppone les
+ *    porte parce qu'il livre, et ils ratisseraient tous les restaurants livreurs.
+ *    `types_any_include` n'AJOUTE qu'une voie d'acceptation : `google_exclude`
+ *    reste un filtre dur en amont (sinon une boulangerie vendant des sandwichs
+ *    entrerait dans snacking).
  * 2. Un lieu est retenu comme concurrent d'un secteur si son primaryType est dans
  *    `google_include` ET n'est PAS dans `google_exclude`.
  * 3. `google_exclude` sert à trancher les recouvrements entre secteurs voisins.
@@ -95,6 +108,11 @@ const SECTOR_TYPE_MAPPING = {
                      "sandwich_shop", "snack_bar", "hot_dog_stand", "hot_dog_restaurant",
                      "kebab_shop", "food_court", "cafe", "coffee_shop", "bakery",
                      "bar", "pub", "wine_bar"],
+    // Symmetric to snacking (principle 1b): a place carrying the fast-food
+    // marker belongs to snacking, not to table service — even when Google types
+    // it `restaurant` (KFC). Peppone, a sit-down italian that merely delivers,
+    // does NOT carry it and stays here. Keeps the sectors mutually exclusive.
+    types_any_exclude: ["fast_food_restaurant"],
     osm_include: ["amenity=restaurant"],
     osm_exclude: ["amenity=fast_food", "amenity=cafe", "amenity=food_court"],
     legacy_note: "En legacy : seul `restaurant` existe (pas de distinction fast-food). " +
@@ -113,8 +131,20 @@ const SECTOR_TYPE_MAPPING = {
     // evicted every fast-food competitor. Sit-down types are already excluded
     // explicitly below, and any other *_restaurant type is rejected anyway by
     // simply not being in google_include.
-    google_exclude: ["restaurant", "fine_dining_restaurant",
-                     "bakery", "bar", "pub", "cafe", "coffee_shop", "tea_house"],
+    // `restaurant` / `fine_dining_restaurant` are NOT listed here on purpose:
+    // they are redundant (a sit-down place is already rejected by not being in
+    // google_include) and listing them would block KFC, whose primaryType is
+    // `restaurant` while its types[] carry the fast-food marker below.
+    // Grocery retail is excluded HARD: a Carrefour City carries the fast-food
+    // marker (it sells sandwiches) and would otherwise be counted as a snacking
+    // competitor. Observed live on Rue Judaïque.
+    google_exclude: ["bakery", "bar", "pub", "cafe", "coffee_shop", "tea_house",
+                     "supermarket", "hypermarket", "discount_supermarket",
+                     "convenience_store", "grocery_store", "food_store",
+                     "warehouse_store", "department_store"],
+    // Format marker (principle 1b): catches fast-casual places Google types by
+    // cuisine (hamburger_restaurant) or mistypes as plain `restaurant`.
+    types_any_include: ["fast_food_restaurant"],
     osm_include: ["amenity=fast_food", "amenity=food_court"],
     osm_exclude: ["amenity=restaurant"],
     legacy_note: "En legacy : approximable via `meal_takeaway`, mais fast_food_restaurant n'existe pas.",
@@ -387,6 +417,14 @@ function matchesSector(place, sectorKey) {
       ? primary.endsWith(rule.slice(6).replace("*", ""))
       : rule === primary;
 
+  // Service-format markers read from types[] (principle 1b).
+  const allTypes = place.types ?? [];
+  const carriesType = (list) => (list ?? []).some((t) => allTypes.includes(t));
+
+  if (carriesType(cfg.types_any_exclude)) return false;
+
+  // google_exclude stays a HARD filter, evaluated before the marker: the marker
+  // only adds an acceptance path, it never overrides an exclusion.
   if (cfg.google_exclude.some(ruleHits)) return false;
 
   // `classify_by: "name"` — trades Google does not type distinctly (see header).
@@ -400,7 +438,8 @@ function matchesSector(place, sectorKey) {
     return Boolean(cfg.name_include && cfg.name_include.some((w) => name.includes(w)));
   }
 
-  if (!cfg.google_include.some(ruleHits)) return false;
+  // Accepted either by primaryType whitelist OR by a service-format marker.
+  if (!cfg.google_include.some(ruleHits) && !carriesType(cfg.types_any_include)) return false;
 
   // Désambiguïsation par nom (pressing vs laverie sur type `laundry`)
   if (cfg.name_exclude && cfg.name_exclude.some(w => name.includes(w))) return false;

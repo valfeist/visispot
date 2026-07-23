@@ -137,4 +137,40 @@ test("every name-classified sector declares text_queries", () => {
   }
 });
 
+// --- Service-format markers (principle 1b) -----------------------------------
+// primaryType encodes cuisine, types[] carries the format. Verified live:
+// KFC is typed `restaurant`, Peppone (sit-down, delivers) is too.
+const T = (name, primaryType, types) => ({ displayName: name, primaryType, types });
+
+test("fast-food marker in types[] moves a place from restauration to snacking", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  const kfc = T("KFC Bordeaux", "restaurant", ["restaurant", "fast_food_restaurant"]);
+  const bw = T("Black & White Burger", "hamburger_restaurant",
+               ["hamburger_restaurant", "fast_food_restaurant", "meal_takeaway"]);
+  for (const p of [kfc, bw]) {
+    assert.ok(matchesSector(p, "snacking"), `${p.displayName} must count as snacking`);
+    assert.ok(!matchesSector(p, "restauration"), `${p.displayName} must leave restauration`);
+  }
+});
+
+test("a sit-down restaurant that merely delivers stays in restauration", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  // Peppone: meal_takeaway/meal_delivery but NO fast_food_restaurant marker.
+  const peppone = T("Peppone", "restaurant",
+                    ["restaurant", "pizza_delivery", "meal_delivery", "meal_takeaway"]);
+  assert.ok(matchesSector(peppone, "restauration"), "sit-down italian belongs to restauration");
+  assert.ok(!matchesSector(peppone, "snacking"), "delivery alone must not make it snacking");
+});
+
+test("the marker never overrides a hard google_exclude", () => {
+  const { matchesSector } = require("../sector-type-mapping");
+  // A bakery selling sandwiches can carry the marker: it must NOT become snacking.
+  const bakery = T("Maison Lamour", "bakery", ["bakery", "fast_food_restaurant"]);
+  assert.ok(!matchesSector(bakery, "snacking"), "bakery is excluded before the marker is read");
+  assert.ok(matchesSector(bakery, "boulangerie"), "and it stays a bakery");
+  // Same for grocery retail: observed live, a Carrefour City carries the marker.
+  const conv = T("Carrefour City", "supermarket", ["supermarket", "fast_food_restaurant"]);
+  assert.ok(!matchesSector(conv, "snacking"), "grocery retail is never a snacking competitor");
+});
+
 console.log(`\n${passed} tests passed.`);
