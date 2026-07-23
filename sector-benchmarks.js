@@ -148,7 +148,12 @@ const SECTOR_BENCHMARKS = {
     seasonality: "Faible saisonnalité ; léger pic automne/hiver.",
     validationStatus: "sourcé (marché 2023)",
   },
-  // --- Taxonomy extension: sourcing not started, all "proposition" ---------------
+  // --- Taxonomy extension --------------------------------------------------------
+  // cafe stays "proposition" on purpose: NAF 56.30Z (débits de boissons) aggregates
+  // LICENSED bars, which this sector explicitly excludes (bar/pub/wine_bar). The
+  // published figures (~370-395 k€/établissement) therefore describe a different
+  // business than a coffee shop or salon de thé and would mislead. Needs a source
+  // scoped to unlicensed coffee shops / tea rooms.
   cafe: {
     nafCode: "56.30Z",
     fluxAdequacy:
@@ -165,49 +170,13 @@ const SECTOR_BENCHMARKS = {
       "Commerce de proximité : la densité résidentielle proche prime sur le flux de passage. La clientèle est locale et récurrente.",
     targetProfile:
       "Résidents du quartier, familles, clientèle attachée au produit et au conseil ; pouvoir d'achat moyen à supérieur.",
-    revenueAnnualEuros: { min: 200000, max: 450000 },
+    revenueAnnualEuros: { min: 250000, max: 670000 },
+    revenueAvgEuros: 605000,
+    revenueSource:
+      "Cerfrance, chiffres clés boucheries-charcuteries : CA médian ≈ 604 700 € HT/établissement ; " +
+      "petit indépendant ≈ 250 000 €, structures plus grandes > 670 000 €.",
     seasonality: "Pic fêtes de fin d'année ; hausse à la saison des grillades.",
-    validationStatus: "proposition — à valider",
-  },
-  poissonnerie: {
-    nafCode: "47.23Z",
-    fluxAdequacy:
-      "Clientèle qui se déplace pour le produit ; la densité résidentielle et la présence d'un marché comptent plus que le flux brut.",
-    targetProfile:
-      "Résidents, clientèle CSP+ sensible à la fraîcheur et au conseil ; pouvoir d'achat supérieur à la moyenne.",
-    revenueAnnualEuros: { min: 150000, max: 400000 },
-    seasonality: "Fort pic fêtes de fin d'année et périodes de carême.",
-    validationStatus: "proposition — à valider",
-  },
-  primeur: {
-    nafCode: "47.21Z",
-    fluxAdequacy:
-      "Achat de proximité et fréquent : la densité résidentielle immédiate prime. Un flux de passage moyen suffit.",
-    targetProfile:
-      "Résidents du quartier, familles, clientèle sensible au frais et au local ; pouvoir d'achat moyen.",
-    revenueAnnualEuros: { min: 120000, max: 350000 },
-    seasonality: "Variations selon les saisons de production ; creux hivernal léger.",
-    validationStatus: "proposition — à valider",
-  },
-  fromagerie: {
-    nafCode: "47.29Z",
-    fluxAdequacy:
-      "Achat plaisir/qualité : le pouvoir d'achat du quartier prime sur le flux de passage. Clientèle qui se déplace.",
-    targetProfile:
-      "CSP+, amateurs de produits de qualité et de conseil ; pouvoir d'achat supérieur à la moyenne.",
-    revenueAnnualEuros: { min: 150000, max: 400000 },
-    seasonality: "Fort pic fêtes de fin d'année ; hausse à la saison des plats fromagers.",
-    validationStatus: "proposition — à valider",
-  },
-  cordonnerie: {
-    nafCode: "95.23Z",
-    fluxAdequacy:
-      "Service de proximité, peu dépendant du flux brut. La densité résidentielle et de bureaux, ainsi que la proximité de commerces d'habillement/chaussures, comptent davantage.",
-    targetProfile:
-      "Clientèle de proximité, actifs et ménages tous profils ; souvent combiné à la reproduction de clés et au multiservice.",
-    revenueAnnualEuros: { min: 40000, max: 110000 },
-    seasonality: "Hausse à l'automne (remise en état) et aux changements de saison.",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (Cerfrance 2023-2024)",
   },
   fleuriste: {
     nafCode: "47.76Z",
@@ -215,9 +184,14 @@ const SECTOR_BENCHMARKS = {
       "Sensible au flux de passage et à la visibilité de la devanture (achat d'impulsion), complété par une clientèle d'habitués et les commandes.",
     targetProfile:
       "Résidents et actifs, clientèle événementielle (fêtes, cérémonies) ; pouvoir d'achat moyen à supérieur.",
-    revenueAnnualEuros: { min: 80000, max: 250000 },
+    revenueAnnualEuros: { min: 100000, max: 400000 },
+    revenueAvgEuros: 197500,
+    revenueSource:
+      "FranceAgriMer / VALHOR, chiffres clés fleuristes (données 2023) : 1,52 Md€ pour " +
+      "7 692 entreprises, soit ≈ 197 500 €/entreprise. La médiane des fonds évalués " +
+      "2022-2024 (≈ 291 800 €) est plus haute, l'échantillon étant biaisé vers les plus gros.",
     seasonality: "Pics très marqués : fête des Mères, Saint-Valentin, Toussaint, fin d'année.",
-    validationStatus: "proposition — à valider",
+    validationStatus: "sourcé (FranceAgriMer/VALHOR 2023)",
   },
 
   retouche: {
