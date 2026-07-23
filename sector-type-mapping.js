@@ -3,8 +3,16 @@
  * Source Google : Places API (New), Table A, à jour au 29/06/2026.
  * Source OSM : tags shop / amenity / craft / leisure.
  *
- * PERIMETRE MVP : 10 secteurs.
- * (services_personne retiré ; pressing scindé en pressing + laverie ; retouche ajouté.)
+ * PERIMETRE MVP : 17 secteurs, regroupés en 4 familles (formulaire à 2 niveaux).
+ * (services_personne retiré ; pressing scindé en pressing + laverie ; retouche ajouté ;
+ *  puis cafe, boucherie, primeur, fromagerie, poissonnerie, fleuriste, cordonnerie.)
+ *
+ * FAMILIES (level 1 of the form; the sector key stays the level-2 value):
+ *   Restauration & café  : restauration, snacking, cafe
+ *   Commerce de bouche   : boulangerie, boucherie, poissonnerie, primeur, fromagerie,
+ *                          epicerie_fine, caviste
+ *   Beauté & soin        : coiffure, beaute
+ *   Services du quotidien: pressing, laverie, retouche, cordonnerie, fleuriste
  *
  * PRINCIPE DE CLASSIFICATION
  * 1. Un lieu est classé par son `primaryType` (API New). On retombe sur `types[]`
@@ -19,11 +27,33 @@
  *
  * PAIRES / FAMILLES MUTUELLEMENT EXCLUSIVES (à garder cohérentes) :
  *   coiffure       <-> beaute
- *   restauration   <-> snacking
+ *   restauration   <-> snacking <-> cafe   (café/salon de thé séparé du service
+ *     à table et du snacking ; l'économie de nuit — bar/pub/wine_bar — est exclue
+ *     de `cafe`, elle n'est dans aucun secteur du périmètre.)
  *   epicerie_fine  <-> caviste   (le vin est du ressort du caviste)
- *   pressing <-> laverie <-> retouche   (famille "entretien du vêtement" :
- *     un même point de vente peut cumuler les trois. Classer sur le tag OSM
- *     ou le primaryType, et ne compter qu'une fois.)
+ *   epicerie_fine  <-> boucherie <-> primeur <-> fromagerie <-> poissonnerie
+ *     (métiers de bouche spécialisés : chacun a son propre competitor set.
+ *      L'épicerie fine ne compte PLUS boucher / primeur / fromager / poissonnier
+ *      comme concurrents directs — voir `name_denylist` sur epicerie_fine, qui
+ *      rejette aussi un lieu explicitement nommé comme l'un de ces métiers.)
+ *   pressing <-> laverie <-> retouche <-> cordonnerie   (famille "entretien" :
+ *     un même point de vente peut cumuler plusieurs de ces métiers. Classer sur
+ *     le tag OSM ou le primaryType, et ne compter qu'une fois.)
+ *
+ * SECTORS WITH NO DEDICATED GOOGLE TYPE (`source_priority: "osm_only"`)
+ *   Verified against Places API (New) Table A: there is NO type for a cobbler,
+ *   a greengrocer, a cheese shop, or a retail fishmonger (`seafood_restaurant`
+ *   is a restaurant, not retail). For these sectors:
+ *     - `google_include` stays EMPTY: a Google primaryType can never prove the
+ *       sector, so it must not be used as the gate.
+ *     - `google_search_types` holds the BROAD types sent to Nearby Search purely
+ *       for discovery. They are NOT a whitelist and must not appear in
+ *       `google_exclude`, or the name gate would never be reached.
+ *     - `name_include` / `name_exclude` are the real gate on a Google result.
+ *     - `osm_include` remains the authoritative source once an OSM competitor
+ *       feed exists (today OSM fields are documentation only: no code reads them).
+ *   This mirrors the garment-care strategy (OSM first + name disambiguation)
+ *   rather than forcing an unrelated Google bucket.
  *
  * GARDE-FOU AUTOMATIQUE (à logger sur TOUS les secteurs) :
  *   Pour chaque concurrent renvoyé, journaliser `primaryType` et `types[]` bruts.
@@ -76,10 +106,29 @@ const SECTOR_TYPE_MAPPING = {
     // explicitly below, and any other *_restaurant type is rejected anyway by
     // simply not being in google_include.
     google_exclude: ["restaurant", "fine_dining_restaurant",
-                     "bakery", "bar", "pub"],
+                     "bakery", "bar", "pub", "cafe", "coffee_shop", "tea_house"],
     osm_include: ["amenity=fast_food", "amenity=food_court"],
     osm_exclude: ["amenity=restaurant"],
     legacy_note: "En legacy : approximable via `meal_takeaway`, mais fast_food_restaurant n'existe pas.",
+  },
+
+  // Café / coffee shop / salon de thé. Deliberately excludes the licensed night
+  // economy (bar, pub, wine_bar, night_club): different business model, different
+  // catchment. Reciprocity is already in place — boulangerie and restauration
+  // both reject cafe/coffee_shop.
+  cafe: {
+    radius_primary: 400, radius_secondary: 600,
+    google_include: ["cafe", "coffee_shop", "coffee_stand", "tea_house"],
+    google_exclude: ["bar", "pub", "wine_bar", "night_club", "bakery",
+                     "restaurant", "fine_dining_restaurant", "fast_food_restaurant",
+                     "MATCH:*_restaurant", "ice_cream_shop", "meal_takeaway"],
+    osm_include: ["amenity=cafe"],
+    osm_exclude: ["amenity=bar", "amenity=pub", "amenity=restaurant",
+                  "amenity=fast_food", "shop=bakery"],
+    legacy_note: "OK en legacy : `cafe` existe. Le salon de thé (`tea_house`) est " +
+                 "API New uniquement ; en legacy il retombe sur `cafe`.",
+    arbitrable: "Un café qui sert des repas le midi peut relever de restauration. " +
+                "Tranché ici sur le primaryType.",
   },
 
   coiffure: {
@@ -116,16 +165,27 @@ const SECTOR_TYPE_MAPPING = {
 
   epicerie_fine: {
     radius_primary: 700, radius_secondary: 1000,
+    // Decontaminated: butcher_shop moved out to `boucherie`; shop=greengrocer to
+    // `primeur`; shop=cheese to `fromagerie`. A specialised food trade is no
+    // longer a direct competitor of a fine grocery.
     google_include: ["grocery_store", "deli", "food_store", "health_food_store",
-                     "butcher_shop", "chocolate_shop", "confectionery", "tea_store",
+                     "chocolate_shop", "confectionery", "tea_store",
                      "asian_grocery_store"],
     // Ne PAS compter la grande distribution comme concurrente d'une épicerie fine.
+    // Reciprocal excludes for the specialised bouche sectors added below.
     google_exclude: ["supermarket", "hypermarket", "discount_supermarket",
                      "discount_store", "convenience_store", "warehouse_store",
-                     "general_store", "department_store", "liquor_store"],
-    osm_include: ["shop=deli", "shop=grocery", "shop=greengrocer", "shop=cheese",
-                  "shop=chocolate", "shop=confectionery", "shop=tea", "shop=health_food"],
-    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=wine"],
+                     "general_store", "department_store", "liquor_store",
+                     "butcher_shop", "seafood_restaurant"],
+    osm_include: ["shop=deli", "shop=grocery", "shop=chocolate",
+                  "shop=confectionery", "shop=tea", "shop=health_food"],
+    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=wine",
+                  "shop=butcher", "shop=greengrocer", "shop=cheese", "shop=seafood"],
+    // A place explicitly named as a specialised trade belongs to that trade, even
+    // when Google types it loosely as grocery_store/food_store. Reuses the existing
+    // name_denylist mechanism (no helper change needed).
+    name_denylist: ["boucherie", "charcuterie", "poissonnerie", "primeur",
+                    "fromagerie", "crémerie", "cremerie"],
     legacy_note: "En legacy : `grocery_or_supermarket` mélange épicerie fine et supermarché. " +
                  "Distinction fiable seulement en API New ou via OSM.",
   },
@@ -139,6 +199,81 @@ const SECTOR_TYPE_MAPPING = {
     osm_exclude: ["shop=supermarket", "amenity=bar", "amenity=pub"],
     legacy_note: "OK en legacy : liquor_store existe.",
     arbitrable: "wine_bar (bar à vin) : adjacent mais non retail. Exclu par défaut, à réintégrer si tu le veux.",
+  },
+
+  // --- Specialised food trades (split out of epicerie_fine) ----------------------
+  // Only `boucherie` has a dedicated Google type. primeur / fromagerie /
+  // poissonnerie are `osm_only`: see the header note on google_search_types.
+
+  boucherie: {
+    radius_primary: 500, radius_secondary: 800,
+    google_include: ["butcher_shop"],
+    // Delis are explicitly NOT competitors of a butcher (product and trade differ).
+    google_exclude: ["deli", "grocery_store", "food_store", "supermarket",
+                     "hypermarket", "convenience_store", "restaurant",
+                     "MATCH:*_restaurant", "fast_food_restaurant"],
+    osm_include: ["shop=butcher"],
+    osm_exclude: ["shop=deli", "shop=supermarket", "shop=convenience"],
+    legacy_note: "OK en legacy : butcher_shop existe (Table A). Aucun type ne " +
+                 "distingue le rayon boucherie d'une GMS — voir overlap_note.",
+    overlap_note: "Les rayons boucherie de la grande distribution captent une part " +
+                  "réelle du marché, mais aucun type Google ne les isole (un " +
+                  "supermarket est typé comme tel en entier). Ils ne sont donc PAS " +
+                  "comptés dans les concurrents directs. À arbitrer si tu veux les " +
+                  "réintégrer comme signal séparé.",
+  },
+
+  primeur: {
+    radius_primary: 500, radius_secondary: 800,
+    google_include: [], // no greengrocer type in Table A
+    google_search_types: ["grocery_store", "food_store", "market"],
+    google_exclude: ["supermarket", "hypermarket", "discount_supermarket",
+                     "convenience_store", "deli", "butcher_shop", "bakery",
+                     "liquor_store", "restaurant", "MATCH:*_restaurant"],
+    name_include: ["primeur", "fruits", "légumes", "legumes", "maraîch", "maraich",
+                   "verger", "au panier"],
+    name_exclude: ["supermarché", "supermarche", "épicerie de nuit", "jus", "juice",
+                   "smoothie", "restaurant"],
+    osm_include: ["shop=greengrocer", "shop=farm"],
+    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=deli"],
+    source_priority: "osm_only",
+    legacy_note: "Aucun type Google (ni legacy ni New) pour le primeur. " +
+                 "Découverte via types larges + filtrage par nom ; OSM fait foi.",
+  },
+
+  fromagerie: {
+    radius_primary: 700, radius_secondary: 1000, // aligné sur epicerie_fine
+    google_include: [], // no cheese shop type in Table A
+    google_search_types: ["grocery_store", "food_store", "deli"],
+    google_exclude: ["supermarket", "hypermarket", "convenience_store",
+                     "butcher_shop", "bakery", "restaurant", "MATCH:*_restaurant"],
+    name_include: ["fromage", "fromagerie", "crémerie", "cremerie", "affineur",
+                   "maître fromager", "maitre fromager"],
+    name_exclude: ["supermarché", "supermarche", "pizzeria", "restaurant",
+                   "raclette", "fondue"],
+    osm_include: ["shop=cheese", "shop=dairy"],
+    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=deli"],
+    source_priority: "osm_only",
+    legacy_note: "Aucun type Google pour la fromagerie/crémerie. Même stratégie " +
+                 "que primeur : découverte large + nom, OSM prioritaire.",
+  },
+
+  poissonnerie: {
+    radius_primary: 700, radius_secondary: 1000,
+    google_include: [], // `seafood_restaurant` is a RESTAURANT, not retail
+    google_search_types: ["grocery_store", "food_store", "market"],
+    google_exclude: ["seafood_restaurant", "restaurant", "MATCH:*_restaurant",
+                     "supermarket", "hypermarket", "convenience_store",
+                     "fast_food_restaurant", "meal_takeaway"],
+    name_include: ["poissonnerie", "poissonner", "marée", "maree", "écailler",
+                   "ecailler", "poisson"],
+    name_exclude: ["restaurant", "sushi", "brasserie", "fish and chips", "friterie",
+                   "supermarché", "supermarche"],
+    osm_include: ["shop=seafood", "shop=fishmonger"],
+    osm_exclude: ["amenity=restaurant", "shop=supermarket", "shop=convenience"],
+    source_priority: "osm_only",
+    legacy_note: "Table A n'a que `seafood_restaurant` (restauration). Le détail " +
+                 "poissonnier n'a aucun type : découverte large + nom, OSM prioritaire.",
   },
 
   // --- Famille "entretien du vêtement" : pressing / laverie / retouche -------------
@@ -182,6 +317,42 @@ const SECTOR_TYPE_MAPPING = {
                   "Classer sur le primaryType, compter une fois dans la famille entretien du vêtement.",
   },
 
+  cordonnerie: {
+    radius_primary: 600, radius_secondary: 800, // aligné sur pressing/retouche
+    google_include: [], // no cobbler/shoe-repair type in Table A
+    // `shoe_store` is retail footwear, used ONLY for discovery: many cordonneries
+    // are typed that way for lack of a better bucket. It must stay out of
+    // google_exclude, otherwise the name gate is never reached.
+    google_search_types: ["shoe_store"],
+    google_exclude: ["clothing_store", "department_store", "shopping_mall",
+                     "supermarket", "sporting_goods_store"],
+    name_include: ["cordonn", "talon", "clé minute", "cle minute", "mister minit",
+                   "réparation chaussure", "reparation chaussure", "multiservice"],
+    name_exclude: ["foot locker", "chausséa", "chaussea", "besson", "sneakers",
+                   "courir", "jonak"],
+    osm_include: ["shop=shoe_repair", "craft=shoemaker"],
+    osm_exclude: ["shop=shoes", "shop=clothes"],
+    source_priority: "osm_only",
+    legacy_note: "Aucun type Google pour la cordonnerie (ni legacy ni New) : " +
+                 "`shoe_store` est du retail. Découverte via shoe_store + " +
+                 "désambiguïsation par nom ; OSM (shop=shoe_repair) fait foi.",
+    overlap_note: "Beaucoup de cordonneries font aussi clés/multiservice et parfois " +
+                  "la retouche : compter une fois dans la famille entretien.",
+  },
+
+  fleuriste: {
+    radius_primary: 600, radius_secondary: 900,
+    google_include: ["florist"],
+    google_exclude: ["supermarket", "hypermarket", "convenience_store",
+                     "home_improvement_store", "garden_center", "gift_shop",
+                     "funeral_home", "grocery_store"],
+    osm_include: ["shop=florist"],
+    osm_exclude: ["shop=garden_centre", "shop=doityourself", "shop=supermarket"],
+    legacy_note: "OK en legacy : `florist` existe.",
+    arbitrable: "Jardineries et rayons fleurs de GMS exclus par défaut " +
+                "(modèle et assortiment différents).",
+  },
+
 };
 
 /**
@@ -190,6 +361,12 @@ const SECTOR_TYPE_MAPPING = {
  * Pour la famille entretien du vêtement : si le lieu vient d'OSM, le tag suffit
  * (source_priority = "osm") ; s'il vient de Google avec primaryType `laundry`,
  * on applique name_include / name_exclude ; sinon -> non classé.
+ *
+ * `source_priority: "osm_only"` (cordonnerie, primeur, fromagerie, poissonnerie):
+ * these sectors have NO dedicated Google type, so `google_include` is empty and
+ * the primaryType can neither prove nor disprove membership. The name is the only
+ * gate on a Google result. Without this branch the (empty) google_include check
+ * would reject every place and the sector would report zero competitors.
  */
 function matchesSector(place, sectorKey) {
   const cfg = SECTOR_TYPE_MAPPING[sectorKey];
@@ -202,6 +379,14 @@ function matchesSector(place, sectorKey) {
       : rule === primary;
 
   if (cfg.google_exclude.some(ruleHits)) return false;
+
+  // Sectors with no dedicated Google type: gate on the name alone.
+  if (cfg.source_priority === "osm_only") {
+    if (cfg.name_exclude && cfg.name_exclude.some((w) => name.includes(w))) return false;
+    if (!cfg.name_include || !cfg.name_include.some((w) => name.includes(w))) return false;
+    return true;
+  }
+
   if (!cfg.google_include.some(ruleHits)) return false;
 
   // Désambiguïsation par nom (pressing vs laverie sur type `laundry`)
