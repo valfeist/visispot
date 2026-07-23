@@ -43,6 +43,10 @@ const COMPETITION_DENSE_MIN = {
   // shop: fewer same-trade competitors are needed to call a zone dense.
   cafe: 8,
   boucherie: 4,
+  poissonnerie: 3,
+  primeur: 4,
+  fromagerie: 3,
+  cordonnerie: 3,
   fleuriste: 4,
 };
 
@@ -63,6 +67,10 @@ const INCOME_SENSITIVITY = {
   // Taxonomy extension.
   fleuriste: "medium",
   boucherie: "medium",
+  primeur: "medium",
+  fromagerie: "high",
+  poissonnerie: "high",
+  cordonnerie: "low",
   cafe: "medium",
 };
 const DEMO_WEIGHTS = {

@@ -20,6 +20,9 @@ const SECTOR_CONFIG = {
   // Commerce de bouche
   "boulangerie":          { radius_primary: 400,  radius_secondary: 600  },
   "boucherie":            { radius_primary: 500,  radius_secondary: 800  },
+  "poissonnerie":         { radius_primary: 700,  radius_secondary: 1000 },
+  "primeur":              { radius_primary: 500,  radius_secondary: 800  },
+  "fromagerie":           { radius_primary: 700,  radius_secondary: 1000 },
   "epicerie_fine":        { radius_primary: 700,  radius_secondary: 1000 },
   "caviste":              { radius_primary: 700,  radius_secondary: 1000 },
   // Beauté & soin
@@ -29,6 +32,7 @@ const SECTOR_CONFIG = {
   "pressing":             { radius_primary: 600,  radius_secondary: 800  },
   "laverie":              { radius_primary: 400,  radius_secondary: 600  },
   "retouche":             { radius_primary: 600,  radius_secondary: 800  },
+  "cordonnerie":          { radius_primary: 600,  radius_secondary: 800  },
   "fleuriste":            { radius_primary: 600,  radius_secondary: 900  },
 };
 

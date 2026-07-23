@@ -321,6 +321,10 @@ function dedupeCompetitors(competitors) {
 function inSectorWhitelist(primaryType, sector) {
   const cfg = SECTOR_TYPE_MAPPING[sector];
   if (!cfg) return true; // no mapping yet (pre-P0.4): cannot judge
+  // Name-classified sectors have no type whitelist by design: a primaryType can
+  // neither prove nor disprove membership, so type-based contamination is not
+  // judgeable. matchesSector's name gate is what filters them.
+  if (cfg.classify_by === "name") return true;
   return cfg.google_include.some((rule) =>
     rule.startsWith("MATCH:")
       ? (primaryType || "").endsWith(rule.slice(6).replace("*", ""))

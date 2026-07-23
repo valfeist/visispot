@@ -194,6 +194,47 @@ const SECTOR_BENCHMARKS = {
     validationStatus: "sourcé (FranceAgriMer/VALHOR 2023)",
   },
 
+  poissonnerie: {
+    nafCode: "47.23Z",
+    fluxAdequacy:
+      "Clientèle qui se déplace pour le produit ; la densité résidentielle et la présence d'un marché comptent plus que le flux brut.",
+    targetProfile:
+      "Résidents, clientèle CSP+ sensible à la fraîcheur et au conseil ; pouvoir d'achat supérieur à la moyenne.",
+    revenueAnnualEuros: { min: 150000, max: 400000 },
+    seasonality: "Fort pic fêtes de fin d'année et périodes de carême.",
+    validationStatus: "proposition — à valider",
+  },
+  primeur: {
+    nafCode: "47.21Z",
+    fluxAdequacy:
+      "Achat de proximité et fréquent : la densité résidentielle immédiate prime. Un flux de passage moyen suffit.",
+    targetProfile:
+      "Résidents du quartier, familles, clientèle sensible au frais et au local ; pouvoir d'achat moyen.",
+    revenueAnnualEuros: { min: 120000, max: 350000 },
+    seasonality: "Variations selon les saisons de production ; creux hivernal léger.",
+    validationStatus: "proposition — à valider",
+  },
+  fromagerie: {
+    nafCode: "47.29Z",
+    fluxAdequacy:
+      "Achat plaisir/qualité : le pouvoir d'achat du quartier prime sur le flux de passage. Clientèle qui se déplace.",
+    targetProfile:
+      "CSP+, amateurs de produits de qualité et de conseil ; pouvoir d'achat supérieur à la moyenne.",
+    revenueAnnualEuros: { min: 150000, max: 400000 },
+    seasonality: "Fort pic fêtes de fin d'année ; hausse à la saison des plats fromagers.",
+    validationStatus: "proposition — à valider",
+  },
+  cordonnerie: {
+    nafCode: "95.23Z",
+    fluxAdequacy:
+      "Service de proximité, peu dépendant du flux brut. La densité résidentielle et de bureaux, ainsi que la proximité de commerces d'habillement/chaussures, comptent davantage.",
+    targetProfile:
+      "Clientèle de proximité, actifs et ménages tous profils ; souvent combiné à la reproduction de clés et au multiservice.",
+    revenueAnnualEuros: { min: 40000, max: 110000 },
+    seasonality: "Hausse à l'automne (remise en état) et aux changements de saison.",
+    validationStatus: "proposition — à valider",
+  },
+
   retouche: {
     nafCode: "95.29Z",
     fluxAdequacy:

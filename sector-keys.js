@@ -7,11 +7,11 @@
  * from the benchmarks crashes the P5 task. The boot assertion fails loudly
  * instead of shipping a silently degraded report.
  *
- * MVP perimeter (13): services_personne retired; pressing split into pressing +
+ * MVP perimeter (17): services_personne retired; pressing split into pressing +
  * laverie; retouche (tailor) added; then the taxonomy extension — cafe,
- * boucherie, fleuriste. (primeur, fromagerie, poissonnerie and cordonnerie were
- * built then dropped: no Google type and broad-type discovery returned zero
- * competitors on a live run. See sector-type-mapping.js header.)
+ * boucherie, fleuriste, then primeur, fromagerie, poissonnerie and cordonnerie
+ * once the Text Search discovery mode made them actually work (a first attempt
+ * with broad Nearby types returned zero competitors live).
  *
  * Grouped into 4 families for the two-level form (see sector-type-mapping.js).
  * The sector key stays the level-2 value, so this list remains the flat source
@@ -26,6 +26,9 @@ const MVP_SECTORS = [
   // Commerce de bouche
   "boulangerie",
   "boucherie",
+  "poissonnerie",
+  "primeur",
+  "fromagerie",
   "epicerie_fine",
   "caviste",
   // Beauté & soin
@@ -35,6 +38,7 @@ const MVP_SECTORS = [
   "pressing",
   "laverie",
   "retouche",
+  "cordonnerie",
   "fleuriste",
 ];
 

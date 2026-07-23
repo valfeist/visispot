@@ -127,4 +127,14 @@ test("epicerie_fine declares text_queries (Nearby alone returns zero live)", () 
   }
 });
 
+test("every name-classified sector declares text_queries", () => {
+  const { SECTOR_TYPE_MAPPING } = require("../sector-type-mapping");
+  for (const [key, cfg] of Object.entries(SECTOR_TYPE_MAPPING)) {
+    if (cfg.classify_by !== "name") continue;
+    assert.ok(cfg.google_include.length === 0, `${key}: google_include must stay empty`);
+    assert.ok(cfg.text_queries?.length > 0, `${key}: no text_queries -> zero discovery`);
+    assert.ok(cfg.name_include?.length > 0, `${key}: name gate is the only filter`);
+  }
+});
+
 console.log(`\n${passed} tests passed.`);

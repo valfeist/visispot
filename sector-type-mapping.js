@@ -237,6 +237,82 @@ const SECTOR_TYPE_MAPPING = {
                   "réintégrer comme signal séparé.",
   },
 
+  // --- Name-classified specialised trades ----------------------------------------
+  // No dedicated Google type exists for these (verified against Table A), so
+  // google_include stays EMPTY: no Nearby Search is issued at all (it only ever
+  // returned supermarkets). Discovery is 100% text_queries; the name is the gate.
+  // Keyword count is kept to 1-2 per sector: each one is a billed API call.
+
+  primeur: {
+    radius_primary: 500, radius_secondary: 800,
+    google_include: [],
+    text_queries: ["primeur", "fruits et légumes"],
+    google_exclude: ["supermarket", "hypermarket", "discount_supermarket",
+                     "convenience_store", "restaurant", "MATCH:*_restaurant"],
+    name_include: ["primeur", "fruits", "légumes", "legumes", "maraîch", "maraich", "verger"],
+    name_exclude: ["supermarché", "supermarche", "jus", "juice", "smoothie", "restaurant"],
+    osm_include: ["shop=greengrocer", "shop=farm"],
+    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=deli"],
+    classify_by: "name",
+    legacy_note: "Aucun type Google (ni legacy ni New) pour le primeur. Découverte " +
+                 "par Text Search, classement par le nom. Validé en réel.",
+  },
+
+  fromagerie: {
+    radius_primary: 700, radius_secondary: 1000, // aligné sur epicerie_fine
+    google_include: [],
+    text_queries: ["fromagerie", "crémerie"],
+    google_exclude: ["supermarket", "hypermarket", "convenience_store",
+                     "restaurant", "MATCH:*_restaurant", "bakery"],
+    name_include: ["fromage", "fromagerie", "crémerie", "cremerie", "affineur"],
+    name_exclude: ["supermarché", "supermarche", "pizzeria", "restaurant",
+                   "raclette", "fondue"],
+    osm_include: ["shop=cheese", "shop=dairy"],
+    osm_exclude: ["shop=supermarket", "shop=convenience", "shop=deli"],
+    classify_by: "name",
+    legacy_note: "Aucun type Google pour la fromagerie/crémerie. Même stratégie " +
+                 "que primeur. Un restaurant nommé '... Fromagerie ...' est écarté " +
+                 "par google_exclude.",
+  },
+
+  poissonnerie: {
+    radius_primary: 700, radius_secondary: 1000,
+    google_include: [], // `seafood_restaurant` is a RESTAURANT, not retail
+    text_queries: ["poissonnerie"],
+    google_exclude: ["seafood_restaurant", "restaurant", "MATCH:*_restaurant",
+                     "supermarket", "hypermarket", "convenience_store",
+                     "fast_food_restaurant", "meal_takeaway"],
+    name_include: ["poissonnerie", "poissonner", "marée", "maree", "écailler",
+                   "ecailler", "poisson"],
+    name_exclude: ["restaurant", "sushi", "brasserie", "fish and chips", "friterie",
+                   "supermarché", "supermarche"],
+    osm_include: ["shop=seafood", "shop=fishmonger"],
+    osm_exclude: ["amenity=restaurant", "shop=supermarket"],
+    classify_by: "name",
+    legacy_note: "Table A n'a que `seafood_restaurant` (restauration). Le détail " +
+                 "poissonnier n'a aucun type : Text Search + nom.",
+  },
+
+  cordonnerie: {
+    radius_primary: 600, radius_secondary: 800, // aligné sur pressing/retouche
+    google_include: [],
+    text_queries: ["cordonnerie"],
+    google_exclude: ["clothing_store", "department_store", "shopping_mall",
+                     "supermarket", "sporting_goods_store"],
+    name_include: ["cordonn", "talon", "clé minute", "cle minute", "mister minit",
+                   "réparation chaussure", "reparation chaussure", "multiservice"],
+    name_exclude: ["foot locker", "chausséa", "chaussea", "besson", "sneakers",
+                   "courir", "jonak"],
+    osm_include: ["shop=shoe_repair", "craft=shoemaker"],
+    osm_exclude: ["shop=shoes", "shop=clothes"],
+    classify_by: "name",
+    legacy_note: "Aucun type Google pour la cordonnerie : `shoe_store` est du " +
+                 "retail. Text Search + nom ; ces lieux reviennent en primaryType " +
+                 "`service`, d'où le classement par le nom.",
+    overlap_note: "Beaucoup de cordonneries font aussi clés/multiservice et parfois " +
+                  "la retouche : compter une fois dans la famille entretien.",
+  },
+
   // --- Famille "entretien du vêtement" : pressing / laverie / retouche -------------
   // Google range pressing ET laverie sous le même type `laundry` : il ne les sépare
   // PAS. OSM les distingue (dry_cleaning vs laundry). => OSM est la source de vérité
@@ -312,6 +388,18 @@ function matchesSector(place, sectorKey) {
       : rule === primary;
 
   if (cfg.google_exclude.some(ruleHits)) return false;
+
+  // `classify_by: "name"` — trades Google does not type distinctly (see header).
+  // They are discovered through text_queries, not Nearby Search, and come back
+  // under generic buckets (food_store, store, market, service), so primaryType
+  // cannot prove membership: the name is the gate. Conservative on purpose — a
+  // real fromagerie named "Chez Delphine" is missed rather than counting a
+  // supermarket. Under-counting beats contaminating.
+  if (cfg.classify_by === "name") {
+    if (cfg.name_exclude && cfg.name_exclude.some((w) => name.includes(w))) return false;
+    return Boolean(cfg.name_include && cfg.name_include.some((w) => name.includes(w)));
+  }
+
   if (!cfg.google_include.some(ruleHits)) return false;
 
   // Désambiguïsation par nom (pressing vs laverie sur type `laundry`)
