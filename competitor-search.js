@@ -407,7 +407,7 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
       },
       body: JSON.stringify({
         includedTypes: googleTypes,
-        maxResultCount: 20,
+        maxResultCount: GOOGLE_MAX_RESULTS,
         locationRestriction: {
           circle: {
             center: { latitude, longitude },
@@ -428,8 +428,17 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
 
   // If Google returns no "places", there are no competitors.
   const places = data.places ?? [];
-  return places.map(formatCompetitor);
+  const out = places.map(formatCompetitor);
+  // Right-censoring flag (see GOOGLE_MAX_RESULTS): the list came back full.
+  out.capped = places.length >= GOOGLE_MAX_RESULTS;
+  return out;
 }
+
+// Google caps a single search at 20 results and Nearby Search offers no
+// pagination. A search that comes back full is therefore a RIGHT-CENSORED
+// observation: the true count is "at least 20", not 20. The scorer must treat it
+// as a lower bound and never resolve it optimistically.
+const GOOGLE_MAX_RESULTS = 20;
 
 // =====================================================================
 // BLOCK 5e — Text Search (second discovery mode)
@@ -459,7 +468,7 @@ async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQu
     },
     body: JSON.stringify({
       textQuery,
-      maxResultCount: 20,
+      maxResultCount: GOOGLE_MAX_RESULTS,
       locationBias: {
         circle: { center: { latitude, longitude }, radius: radiusMeters },
       },
@@ -473,7 +482,8 @@ async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQu
     );
   }
 
-  return (data.places ?? [])
+  const raw = data.places ?? [];
+  const kept = raw
     .map(formatCompetitor)
     .filter(
       (c) =>
@@ -481,6 +491,8 @@ async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQu
         c.longitude !== null &&
         metersBetween(latitude, longitude, c.latitude, c.longitude) <= radiusMeters
     );
+  kept.capped = raw.length >= GOOGLE_MAX_RESULTS;
+  return kept;
 }
 
 // Sector-aware search: Nearby Search, plus a Text Search per `text_queries`
@@ -488,17 +500,22 @@ async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQu
 // through the usual classification (no special-casing downstream).
 async function searchCompetitorsForSector(latitude, longitude, radiusMeters, sector) {
   const types = includedTypesForSector(sector) ?? [];
-  const collected = types.length
+  const nearby = types.length
     ? await searchCompetitors(latitude, longitude, radiusMeters, types)
     : [];
+  let capped = Boolean(nearby.capped);
+  const collected = [...nearby];
 
   for (const query of SECTOR_TYPE_MAPPING[sector]?.text_queries ?? []) {
-    collected.push(
-      ...(await searchCompetitorsByText(latitude, longitude, radiusMeters, query))
-    );
+    const hits = await searchCompetitorsByText(latitude, longitude, radiusMeters, query);
+    capped = capped || Boolean(hits.capped);
+    collected.push(...hits);
   }
 
-  return dedupeCompetitors(collected);
+  const merged = dedupeCompetitors(collected);
+  // Any censored underlying search censors the whole count.
+  merged.capped = capped;
+  return merged;
 }
 
 // =====================================================================

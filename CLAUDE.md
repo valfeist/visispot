@@ -101,7 +101,11 @@ Une commande (`assemble-report.js`) orchestre tout.
 - Le **score /10, le verdict et les 4 métriques clés** viennent de `scoring.js` (fonction pure, reproductible, inspectable via `score_breakdown`), **pas** du LLM. Le LLM ne rédige plus que le résumé exécutif + la justification, sans pouvoir changer le chiffre.
 - 4 piliers avec seuils explicites : **concurrence** (Absente/Modérée/Dense, seuils par secteur), **démographie** (revenu/stabilité/population, `INCOME_SENSITIVITY` par secteur), **flux** (proxy densité 1 km), **risques** (vacance, saturation). Verdict = score ≥ 5,5 ET aucun veto.
 - **Vetos durs → NON VIABLE** : zone non couverte, concurrence Dense + flux Faible, démographie Inadapté.
-- ⚠️ Les **seuils de concurrence** sont calibrés sur des comptages propres (post-filtrage) — à recalibrer si le filtrage évolue.
+- **Garde-fous sur le pilier concurrence** (le plus lourd, 35 %) : un « 0 concurrent » vaut 10/10, donc c'est l'entrée la plus dangereuse quand elle vient d'une panne. Deux protections :
+  - **Contradiction OSM** : 0 concurrent alors qu'OSM recense ≥ 3 commerces du même métier → catégorie « Indéterminée », note neutre 5, `dataWarning`. Asymétrique : un faible comptage OSM ne confirme JAMAIS une absence (couverture OSM inégale), il ne fait que la contester.
+  - **Censure à droite** : Google plafonne à 20 résultats (Nearby ne pagine pas). Une recherche qui revient pleine est une **borne inférieure**, pas une mesure → jamais « Absente », et note plafonnée à 6.
+  - Principe commun : **l'incertitude ne doit jamais améliorer le score.**
+- ⚠️ **Les seuils de concurrence ne sont PAS calibrés statistiquement.** Mesurés sur 6 zones contrastées (2 villes) : 4 étaient manifestement cassés et corrigés (`coiffure` 6→12 et `beaute` 6→10, qui se déclenchaient dans TOUTES les zones ; `primeur` 4→2 et `pressing` 4→3, qui ne se déclenchaient JAMAIS). Les 13 autres sont inchangés faute de preuves.
 
 ## Conventions établies
 
@@ -127,6 +131,19 @@ Voir `CONVENTIONS.md`. En résumé :
 - **Géométrie IRIS** : à la demande via OpenDataSoft, **millésime pinné à `year=date'2024'`** (géo 01/01/2024, alignée sur le RP 2022 ; évite de mélanger un futur millésime). Le GeoJSON national >1 Go est impraticable.
 - **Millésime des données démographiques** : pris **par dimension** (le plus récent que l'INSEE publie *à l'IRIS*). Population/logement = **RP 2022**. Revenus = **Filosofi 2021** : l'INSEE a **sauté 2022** (qualité) et **ne diffuse pas Filosofi 2 (2023) à l'IRIS** (commune et au-dessus seulement). Ne pas mélanger Filosofi 1 (2021) et 2 (2023) : méthodologies non comparables. Millésimes affichés au lecteur en P3.
 - **CA sectoriel (P5)** : présenté comme **fourchette de CA annuel par établissement** (+ moyenne du secteur), sourcée (FCGA, Cerfrance, INSEE, études de branche). L'ancien modèle **`surface × CA/m²` a été abandonné** : le CA/m² n'est pas publié de façon harmonisée → un écart de 3× inexploitable, et le chiffre montré reposait sur le champ le moins fondé. La **surface est désormais un modulateur qualitatif** (prompt P5). 7/10 secteurs sourcés ; snacking, beauté, retouche restent « proposition » (pas de source par établissement crédible — on assume plutôt que d'inventer).
+
+## Calibration des seuils de concurrence — état et impasses
+
+**Le problème.** Un seuil en valeur absolue ne peut pas être juste : (1) la mesure est **censurée** au plafond Google de 20 (sur Sainte-Catherine : 13 restaurants détectés, **229** recensés par OSM) ; (2) elle n'est pas rapportée à la **demande** (8 concurrents pour 2 000 ou 25 000 habitants n'ont pas le même sens) ; (3) elle ignore la **structure nationale du métier** (la coiffure est ~2,5× plus dense que la boulangerie partout en France — d'où `coiffure` toujours « Dense »).
+
+**Trois pistes tentées, deux invalidées par la validation** (à ne pas refaire à l'identique) :
+1. ~~Indice vs ratio national SIRENE~~ — **incompatibilité de définitions** : SIRENE compte des unités légales, notre numérateur vient de Google/OSM. Biais systématique invisible.
+2. ~~Densités relatives par code NAF~~ — **un NAF n'est pas un métier**. Biais non uniforme (1,3× pour la boulangerie et la coiffure, mais **2,8× pour le fleuriste**), car `47.76Z` agrège fleuristes + jardineries + animaleries ; `95.29Z` est un fourre-tout ; `96.01B` couvre pressing ET laverie, `47.29Z` épicerie fine ET fromagerie (4 secteurs sans code distinct).
+3. Calibration par quantiles sur notre propre mesure — **bloquée** : Google est plafonné et payant (~35 € pour 50 lieux), Overpass répond en ~133 s pour une requête triviale (échantillonnage massif impraticable).
+
+**Piste propre restante** : la **BPE INSEE** (Base Permanente des Équipements) recense des **points de vente réels** avec une typologie adaptée, au lieu d'unités légales. Chantier non commencé.
+
+**Ce qui manque vraiment** : de la **vérité terrain** — des emplacements dont on connaît l'issue (commerces qui ont marché ou fermé). 5 à 10 cas réels vaudraient plus que toute la mécanique ci-dessus.
 
 ## Tâches en attente / pistes
 

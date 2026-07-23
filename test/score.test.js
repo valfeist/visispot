@@ -127,4 +127,33 @@ test("without an OSM signal the zero keeps its previous behaviour", () => {
   assert.strictEqual(withOsm(null).score, withOsm(1).score);
 });
 
+// --- Right-censoring (Google's 20-result cap) ---------------------------------
+const capBase = {
+  businessType: "boulangerie",
+  zone: { covered: true },
+  demographics: { medianIncome: 24000, ownerShare: 0.35, population: 15000 },
+  risks: { vacancyPct300: 5, fastFood300: 2, worksUnknown: true, rentUnknown: true },
+};
+const cap = (directPrimary, capped) =>
+  computeScore({ ...capBase, competition: { directPrimary, chainPrimary: 0, densityGlobal1km: 900, capped } });
+
+test("a censored search never reads as an empty market", () => {
+  assert.strictEqual(cap(0, false).keyMetrics.directCompetition, "Absente");
+  assert.strictEqual(cap(0, true).keyMetrics.directCompetition, "Indéterminée");
+  assert.ok(cap(0, true).score < cap(0, false).score, "censoring must not be rewarded");
+});
+
+test("censoring caps the competition score but never improves it", () => {
+  for (const n of [0, 1, 2, 4, 8]) {
+    assert.ok(cap(n, true).score <= cap(n, false).score, `censored score must not exceed the open one at ${n}`);
+  }
+});
+
+test("thresholds fixed for the four broken sectors", () => {
+  const { COMPETITION_DENSE_MIN: D } = require("../scoring");
+  // Fired everywhere -> raised; never fired -> lowered.
+  assert.ok(D.coiffure > 6 && D.beaute > 6, "coiffure/beaute must no longer fire in every zone");
+  assert.ok(D.primeur <= 2 && D.pressing <= 3, "primeur/pressing must be reachable");
+});
+
 console.log(`\n${passed} tests passed.`);

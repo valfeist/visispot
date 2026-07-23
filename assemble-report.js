@@ -105,6 +105,20 @@ function osmSameCategoryCount(sector, density, radius) {
   return tags.reduce((n, t) => n + (ring.byCategory?.[t.split("=")[1]] ?? 0), 0);
 }
 
+// Builds a GeoJSON circle polygon (metres) so the catchment population can be
+// measured on the SAME radius as the competitor search. Using the 5-min
+// isochrone instead would bias sectors whose radius differs from a 5-min walk.
+function circlePolygon(latitude, longitude, radiusMeters, points = 48) {
+  const ring = [];
+  const dLat = radiusMeters / 111320;
+  const dLon = radiusMeters / (111320 * Math.cos((latitude * Math.PI) / 180));
+  for (let i = 0; i <= points; i++) {
+    const a = (2 * Math.PI * i) / points;
+    ring.push([longitude + dLon * Math.cos(a), latitude + dLat * Math.sin(a)]);
+  }
+  return { type: "Polygon", coordinates: [ring] };
+}
+
 async function main() {
   console.log(`Analyse : ${order.address} · secteur "${order.businessType}"\n`);
   // --- 1. Geocode + zone validation ---------------------------------
@@ -221,6 +235,9 @@ async function main() {
       // Corroboration signal for a zero competitor count (see scoring.js):
       // how many same-trade shops OSM maps in the closest ring.
       osmSameCategory: osmSameCategoryCount(order.businessType, density, radii.radius_primary),
+      // Right-censoring: the Google search came back full, so the count is a
+      // lower bound, not a measurement.
+      capped: Boolean(primaryRaw.capped),
     },
     demographics: {
       population: agg10.population.total,
