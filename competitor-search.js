@@ -68,15 +68,7 @@ const GOOGLE_TYPES_BY_SECTOR = {
 // legacy table for any sector not yet in the mapping (reconciled in P0.4).
 function includedTypesForSector(sector) {
   const cfg = SECTOR_TYPE_MAPPING[sector];
-  if (cfg) {
-    // Sectors with no dedicated Google type (source_priority "osm_only") have an
-    // empty google_include on purpose. They discover through broad
-    // `google_search_types` and are then gated by name in matchesSector.
-    const source = cfg.google_include.length
-      ? cfg.google_include
-      : cfg.google_search_types ?? [];
-    return source.filter((t) => !t.startsWith("MATCH:"));
-  }
+  if (cfg) return cfg.google_include.filter((t) => !t.startsWith("MATCH:"));
   return GOOGLE_TYPES_BY_SECTOR[sector];
 }
 
@@ -329,10 +321,6 @@ function dedupeCompetitors(competitors) {
 function inSectorWhitelist(primaryType, sector) {
   const cfg = SECTOR_TYPE_MAPPING[sector];
   if (!cfg) return true; // no mapping yet (pre-P0.4): cannot judge
-  // osm_only sectors have no type whitelist by design: a primaryType can neither
-  // prove nor disprove membership, so type-based contamination is not judgeable
-  // here. The name gate in matchesSector is what filters them.
-  if (cfg.source_priority === "osm_only") return true;
   return cfg.google_include.some((rule) =>
     rule.startsWith("MATCH:")
       ? (primaryType || "").endsWith(rule.slice(6).replace("*", ""))

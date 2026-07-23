@@ -114,30 +114,6 @@ test("epicerie_fine name_denylist rejects a loosely typed specialised trade", ()
   assert.strictEqual(direct.length, 0, "a fromagerie must not count as épicerie fine");
 });
 
-test("osm_only sector (cordonnerie) gates on the name, not the type", () => {
-  const places = [
-    P("Cordonnerie Saint-Michel", "shoe_store", 0),
-    P("Foot Locker", "shoe_store", 2),
-  ];
-  const { direct } = classifyCompetitors(places, "cordonnerie", []);
-  assert.deepStrictEqual(direct.map((d) => d.name), ["Cordonnerie Saint-Michel"]);
-});
 
-test("osm_only sectors discover through google_search_types", () => {
-  // google_include is empty by design, so the search must fall back to the
-  // broad discovery types instead of sending an empty includedTypes.
-  assert.deepStrictEqual(includedTypesForSector("cordonnerie"), ["shoe_store"]);
-  assert.ok(includedTypesForSector("primeur").includes("grocery_store"));
-  assert.ok(includedTypesForSector("poissonnerie").length > 0, "poissonnerie must query something");
-});
-
-test("poissonnerie excludes seafood restaurants (retail vs restaurant)", () => {
-  const places = [
-    P("Poissonnerie de la Criée", "grocery_store", 0),
-    P("Le Bar à Huîtres", "seafood_restaurant", 2),
-  ];
-  const { direct } = classifyCompetitors(places, "poissonnerie", []);
-  assert.deepStrictEqual(direct.map((d) => d.name), ["Poissonnerie de la Criée"]);
-});
 
 console.log(`\n${passed} tests passed.`);

@@ -18,14 +18,17 @@ function test(name, fn) {
 
 const asSet = (keys) => Object.fromEntries(keys.map((k) => [k, 1]));
 
-test("MVP perimeter is exactly 17 sectors, without services_personne", () => {
-  assert.strictEqual(MVP_SECTORS.length, 17);
+test("MVP perimeter is exactly 13 sectors, without services_personne", () => {
+  assert.strictEqual(MVP_SECTORS.length, 13);
   assert.ok(!MVP_SECTORS.includes("services_personne"));
   for (const k of ["pressing", "laverie", "retouche"]) assert.ok(MVP_SECTORS.includes(k));
   // Taxonomy extension: the 7 sectors added on top of the original perimeter.
-  for (const k of ["cafe", "boucherie", "poissonnerie", "primeur", "fromagerie",
-                   "cordonnerie", "fleuriste"]) {
+  for (const k of ["cafe", "boucherie", "fleuriste"]) {
     assert.ok(MVP_SECTORS.includes(k), `${k} missing from the MVP perimeter`);
+  }
+  // Deferred: no Google type and broad-type discovery returned zero live results.
+  for (const k of ["primeur", "fromagerie", "poissonnerie", "cordonnerie"]) {
+    assert.ok(!MVP_SECTORS.includes(k), `${k} must stay out of the perimeter`);
   }
   // No duplicate keys (the list is grouped by family, easy to fat-finger).
   assert.strictEqual(new Set(MVP_SECTORS).size, MVP_SECTORS.length);

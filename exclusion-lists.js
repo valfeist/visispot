@@ -202,9 +202,6 @@ const EXCLUSION_LISTS = {
   // Commerce de bouche
   boulangerie: BAKERY_EXCLUSIONS,
   boucherie: FOOD_SPECIALIST_EXCLUSIONS,
-  poissonnerie: FOOD_SPECIALIST_EXCLUSIONS,
-  primeur: FOOD_SPECIALIST_EXCLUSIONS,
-  fromagerie: FOOD_SPECIALIST_EXCLUSIONS,
   epicerie_fine: DELI_WINE_EXCLUSIONS,
   caviste: DELI_WINE_EXCLUSIONS,
   // Beauté & soin
@@ -214,7 +211,6 @@ const EXCLUSION_LISTS = {
   pressing: PERSONAL_SERVICES_EXCLUSIONS,
   laverie: PERSONAL_SERVICES_EXCLUSIONS,
   retouche: PERSONAL_SERVICES_EXCLUSIONS,
-  cordonnerie: PERSONAL_SERVICES_EXCLUSIONS,
   fleuriste: FLORIST_EXCLUSIONS,
 };
 
