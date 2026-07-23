@@ -69,7 +69,13 @@ const SECTOR_TYPE_MAPPING = {
     google_include: ["fast_food_restaurant", "sandwich_shop", "kebab_shop",
                      "hot_dog_stand", "hot_dog_restaurant", "salad_shop", "snack_bar",
                      "food_court", "meal_takeaway", "bagel_shop", "juice_shop", "acai_shop"],
-    google_exclude: ["restaurant", "fine_dining_restaurant", "MATCH:*_restaurant",
+    // NOTE: `MATCH:*_restaurant` must NOT be listed here. google_exclude is
+    // evaluated BEFORE google_include, and the wildcard matched this sector's own
+    // core types (fast_food_restaurant, hot_dog_restaurant), which silently
+    // evicted every fast-food competitor. Sit-down types are already excluded
+    // explicitly below, and any other *_restaurant type is rejected anyway by
+    // simply not being in google_include.
+    google_exclude: ["restaurant", "fine_dining_restaurant",
                      "bakery", "bar", "pub"],
     osm_include: ["amenity=fast_food", "amenity=food_court"],
     osm_exclude: ["amenity=restaurant"],
