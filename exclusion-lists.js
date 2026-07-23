@@ -140,20 +140,82 @@ const PERSONAL_SERVICES_EXCLUSIONS = [
   falsePositive("cordonnerie grande surface", "Big-box shoe repair"),
 ];
 
+// Specialised food trades split out of epicerie_fine. Supermarkets are technical
+// false positives here too: their counters are not a same-trade competitor.
+const FOOD_SPECIALIST_EXCLUSIONS = [
+  // chains
+  chain("maison david", "Butcher franchise"),
+  chain("boucheries andré", "Butcher chain"),
+  chain("grand frais", "Fresh-produce retail chain"),
+  chain("naturalia", "Organic grocery chain"),
+  chain("biocoop", "Organic grocery chain"),
+  // false positives
+  falsePositive("carrefour", "Supermarket counter, not a specialised shop"),
+  falsePositive("leclerc", "Supermarket counter, not a specialised shop"),
+  falsePositive("intermarché", "Supermarket counter, not a specialised shop"),
+  falsePositive("lidl", "Supermarket"),
+  falsePositive("aldi", "Supermarket"),
+  falsePositive("monoprix", "Supermarket"),
+  falsePositive("franprix", "Supermarket"),
+  falsePositive("casino", "Supermarket"),
+  falsePositive("marché couvert", "Covered market hall, not a single shop"),
+  falsePositive("restaurant", "Restaurant, not a retail trade"),
+];
+
+const CAFE_EXCLUSIONS = [
+  // chains
+  chain("starbucks", "Coffee chain"),
+  chain("columbus café", "Coffee chain"),
+  chain("costa coffee", "Coffee chain"),
+  chain("mcafé", "Fast-food coffee corner"),
+  chain("paul", "Bakery chain with coffee corner"),
+  // false positives
+  falsePositive("bar tabac", "Licensed bar, different model"),
+  falsePositive("pub", "Licensed pub, night economy"),
+  falsePositive("brasserie", "Full-service brasserie"),
+  falsePositive("cafétéria entreprise", "Corporate cafeteria"),
+  falsePositive("cyber café", "Internet cafe"),
+];
+
+const FLORIST_EXCLUSIONS = [
+  // chains
+  chain("monceau fleurs", "Florist chain"),
+  chain("au nom de la rose", "Florist chain"),
+  chain("rapid'flore", "Florist chain"),
+  chain("interflora", "Florist network"),
+  // false positives
+  falsePositive("jardinerie", "Garden centre, different assortment"),
+  falsePositive("truffaut", "Garden centre chain"),
+  falsePositive("botanic", "Garden centre chain"),
+  falsePositive("pompes funèbres", "Funeral home with flower service"),
+  falsePositive("cimetière", "Cemetery flower stand"),
+];
+
 // --- Mapping: form sector value -> exclusion list ---------------------
 // Keys are the French form sector values; grouped sectors share a list.
 
 const EXCLUSION_LISTS = {
-  boulangerie: BAKERY_EXCLUSIONS,
+  // Restauration & café
   restauration: RESTAURANT_EXCLUSIONS,
   snacking: RESTAURANT_EXCLUSIONS,
-  coiffure: HAIR_BEAUTY_EXCLUSIONS,
-  beaute: HAIR_BEAUTY_EXCLUSIONS,
+  cafe: CAFE_EXCLUSIONS,
+  // Commerce de bouche
+  boulangerie: BAKERY_EXCLUSIONS,
+  boucherie: FOOD_SPECIALIST_EXCLUSIONS,
+  poissonnerie: FOOD_SPECIALIST_EXCLUSIONS,
+  primeur: FOOD_SPECIALIST_EXCLUSIONS,
+  fromagerie: FOOD_SPECIALIST_EXCLUSIONS,
   epicerie_fine: DELI_WINE_EXCLUSIONS,
   caviste: DELI_WINE_EXCLUSIONS,
+  // Beauté & soin
+  coiffure: HAIR_BEAUTY_EXCLUSIONS,
+  beaute: HAIR_BEAUTY_EXCLUSIONS,
+  // Services du quotidien
   pressing: PERSONAL_SERVICES_EXCLUSIONS,
   laverie: PERSONAL_SERVICES_EXCLUSIONS,
   retouche: PERSONAL_SERVICES_EXCLUSIONS,
+  cordonnerie: PERSONAL_SERVICES_EXCLUSIONS,
+  fleuriste: FLORIST_EXCLUSIONS,
 };
 
 module.exports = { EXCLUSION_LISTS };

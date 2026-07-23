@@ -7,21 +7,37 @@
  * from the benchmarks crashes the P5 task. The boot assertion fails loudly
  * instead of shipping a silently degraded report.
  *
- * MVP perimeter (10): services_personne retired; pressing split into pressing +
- * laverie; retouche (tailor) added.
+ * MVP perimeter (17): services_personne retired; pressing split into pressing +
+ * laverie; retouche (tailor) added; then the taxonomy extension — cafe,
+ * boucherie, primeur, fromagerie, poissonnerie, fleuriste, cordonnerie.
+ *
+ * Grouped into 4 families for the two-level form (see sector-type-mapping.js).
+ * The sector key stays the level-2 value, so this list remains the flat source
+ * of truth for every sector-keyed config.
  */
 
 const MVP_SECTORS = [
-  "boulangerie",
+  // Restauration & café
   "restauration",
   "snacking",
-  "coiffure",
-  "beaute",
+  "cafe",
+  // Commerce de bouche
+  "boulangerie",
+  "boucherie",
+  "poissonnerie",
+  "primeur",
+  "fromagerie",
   "epicerie_fine",
   "caviste",
+  // Beauté & soin
+  "coiffure",
+  "beaute",
+  // Services du quotidien
   "pressing",
   "laverie",
   "retouche",
+  "cordonnerie",
+  "fleuriste",
 ];
 
 // Pure: compares each named set's keys to `expected`, returns the divergences.

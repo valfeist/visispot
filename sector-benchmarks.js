@@ -148,6 +148,78 @@ const SECTOR_BENCHMARKS = {
     seasonality: "Faible saisonnalité ; léger pic automne/hiver.",
     validationStatus: "sourcé (marché 2023)",
   },
+  // --- Taxonomy extension: sourcing not started, all "proposition" ---------------
+  cafe: {
+    nafCode: "56.30Z",
+    fluxAdequacy:
+      "Très dépendant du flux piéton de passage et de la présence de bureaux, commerces ou lieux de vie à proximité. Un flux moyen à élevé en journée est important.",
+    targetProfile:
+      "Actifs en pause, étudiants, clientèle de passage et habitués du quartier ; mixité d'âges.",
+    revenueAnnualEuros: { min: 100000, max: 300000 },
+    seasonality: "Pic en terrasse aux beaux jours ; creux estival en zone de bureaux.",
+    validationStatus: "proposition — à valider",
+  },
+  boucherie: {
+    nafCode: "47.22Z",
+    fluxAdequacy:
+      "Commerce de proximité : la densité résidentielle proche prime sur le flux de passage. La clientèle est locale et récurrente.",
+    targetProfile:
+      "Résidents du quartier, familles, clientèle attachée au produit et au conseil ; pouvoir d'achat moyen à supérieur.",
+    revenueAnnualEuros: { min: 200000, max: 450000 },
+    seasonality: "Pic fêtes de fin d'année ; hausse à la saison des grillades.",
+    validationStatus: "proposition — à valider",
+  },
+  poissonnerie: {
+    nafCode: "47.23Z",
+    fluxAdequacy:
+      "Clientèle qui se déplace pour le produit ; la densité résidentielle et la présence d'un marché comptent plus que le flux brut.",
+    targetProfile:
+      "Résidents, clientèle CSP+ sensible à la fraîcheur et au conseil ; pouvoir d'achat supérieur à la moyenne.",
+    revenueAnnualEuros: { min: 150000, max: 400000 },
+    seasonality: "Fort pic fêtes de fin d'année et périodes de carême.",
+    validationStatus: "proposition — à valider",
+  },
+  primeur: {
+    nafCode: "47.21Z",
+    fluxAdequacy:
+      "Achat de proximité et fréquent : la densité résidentielle immédiate prime. Un flux de passage moyen suffit.",
+    targetProfile:
+      "Résidents du quartier, familles, clientèle sensible au frais et au local ; pouvoir d'achat moyen.",
+    revenueAnnualEuros: { min: 120000, max: 350000 },
+    seasonality: "Variations selon les saisons de production ; creux hivernal léger.",
+    validationStatus: "proposition — à valider",
+  },
+  fromagerie: {
+    nafCode: "47.29Z",
+    fluxAdequacy:
+      "Achat plaisir/qualité : le pouvoir d'achat du quartier prime sur le flux de passage. Clientèle qui se déplace.",
+    targetProfile:
+      "CSP+, amateurs de produits de qualité et de conseil ; pouvoir d'achat supérieur à la moyenne.",
+    revenueAnnualEuros: { min: 150000, max: 400000 },
+    seasonality: "Fort pic fêtes de fin d'année ; hausse à la saison des plats fromagers.",
+    validationStatus: "proposition — à valider",
+  },
+  cordonnerie: {
+    nafCode: "95.23Z",
+    fluxAdequacy:
+      "Service de proximité, peu dépendant du flux brut. La densité résidentielle et de bureaux, ainsi que la proximité de commerces d'habillement/chaussures, comptent davantage.",
+    targetProfile:
+      "Clientèle de proximité, actifs et ménages tous profils ; souvent combiné à la reproduction de clés et au multiservice.",
+    revenueAnnualEuros: { min: 40000, max: 110000 },
+    seasonality: "Hausse à l'automne (remise en état) et aux changements de saison.",
+    validationStatus: "proposition — à valider",
+  },
+  fleuriste: {
+    nafCode: "47.76Z",
+    fluxAdequacy:
+      "Sensible au flux de passage et à la visibilité de la devanture (achat d'impulsion), complété par une clientèle d'habitués et les commandes.",
+    targetProfile:
+      "Résidents et actifs, clientèle événementielle (fêtes, cérémonies) ; pouvoir d'achat moyen à supérieur.",
+    revenueAnnualEuros: { min: 80000, max: 250000 },
+    seasonality: "Pics très marqués : fête des Mères, Saint-Valentin, Toussaint, fin d'année.",
+    validationStatus: "proposition — à valider",
+  },
+
   retouche: {
     nafCode: "95.29Z",
     fluxAdequacy:

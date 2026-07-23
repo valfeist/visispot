@@ -39,6 +39,15 @@ const COMPETITION_DENSE_MIN = {
   pressing: 4,
   laverie: 4,
   retouche: 4,
+  // Taxonomy extension. Specialised trades saturate faster than a generalist
+  // shop: fewer same-trade competitors are needed to call a zone dense.
+  cafe: 8,
+  boucherie: 4,
+  poissonnerie: 3,
+  primeur: 4,
+  fromagerie: 3,
+  cordonnerie: 3,
+  fleuriste: 4,
 };
 
 // How much the local purchasing power (median income) weighs in the
@@ -55,6 +64,14 @@ const INCOME_SENSITIVITY = {
   retouche: "medium",
   snacking: "low",
   laverie: "low",
+  // Taxonomy extension.
+  fromagerie: "high",   // achat plaisir, sensible au pouvoir d'achat
+  poissonnerie: "high",
+  fleuriste: "medium",
+  boucherie: "medium",
+  primeur: "medium",
+  cafe: "medium",
+  cordonnerie: "low",   // service contraint, peu élastique au revenu
 };
 const DEMO_WEIGHTS = {
   high: { income: 0.55, stability: 0.20, population: 0.25 },
