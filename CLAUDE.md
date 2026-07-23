@@ -23,7 +23,12 @@ node assemble-report.js "12 Rue de la Roquette, 75011 Paris, France" restauratio
 node assemble-report.js "10 Rue Sainte-Catherine, 33000 Bordeaux, France" coiffure 60 1800
 ```
 
-- **Périmètre MVP : 10 secteurs** — `boulangerie · restauration · snacking · coiffure · beaute · epicerie_fine · caviste · pressing · laverie · retouche`. Un secteur inconnu → erreur immédiate avec la liste. Une **assertion au démarrage** (`sector-keys.js`) échoue bruyamment si les jeux de clés divergent (voir P0.4 ci-dessous).
+- **Périmètre MVP : 17 secteurs**, groupés en 4 familles (formulaire à 2 niveaux prévu) :
+  - *Restauration & café* : `restauration · snacking · cafe`
+  - *Commerce de bouche* : `boulangerie · boucherie · poissonnerie · primeur · fromagerie · epicerie_fine · caviste`
+  - *Beauté & soin* : `coiffure · beaute`
+  - *Services du quotidien* : `pressing · laverie · retouche · cordonnerie · fleuriste`
+  Un secteur inconnu → erreur immédiate avec la liste. Une **assertion au démarrage** (`sector-keys.js`) échoue bruyamment si les jeux de clés divergent (voir P0.4 ci-dessous).
 - Sortie : `output/<YYYY-MM-DD_adresse-slug>/report.html` + 3 cartes PNG + `report-data.json`. Ouvrir le HTML → Cmd+P → « Enregistrer en PDF ».
 - ~30-60 s et ~0,06 € d'API LLM par rapport. Le géocodage Google exige que l'IP sortante soit autorisée sur la clé (restriction IP possible côté Google Cloud).
 
@@ -42,7 +47,7 @@ node test/competitor-classify.test.js# filtrage/dédup/contamination concurrents
 node test/sector-keys.test.js        # cohérence des clés secteur
 node test/iris-weight.test.js        # pondération surfacique IRIS
 ```
-31 tests au total, `node:assert`, sans réseau ni clé. Chaque module a aussi un lanceur `if (require.main === module)` (souvent sur l'adresse de Bordeaux) pour test isolé : `node competitor-search.js`, `commercial-dynamics.js`, `iris-geometry.js`, `scoring.js`, etc. La rédaction LLM par page : `node llm-synthesis.js <p1|p4|p5|p6>`.
+45 tests au total, `node:assert`, sans réseau ni clé. Chaque module a aussi un lanceur `if (require.main === module)` (souvent sur l'adresse de Bordeaux) pour test isolé : `node competitor-search.js`, `commercial-dynamics.js`, `iris-geometry.js`, `scoring.js`, etc. La rédaction LLM par page : `node llm-synthesis.js <p1|p4|p5|p6>`.
 
 ## Clés API (toutes dans `.env`)
 
@@ -70,14 +75,14 @@ Une commande (`assemble-report.js`) orchestre tout.
 | `rebuild-report.js` | Reconstruit `report.html` depuis `report-data.json` (sans API). | — |
 | `load-env.js` | Charge `.env` dans `process.env`. | — |
 | **Config / données** | | |
-| `sector-keys.js` | **`MVP_SECTORS` (10)** + `assertSectorKeyConsistency()` : source de vérité du périmètre + assertion au boot (dropdown = config = table = benchmarks = exclusions). | — |
-| `sector-type-mapping.js` | **Table secteur → primaryType Google (New)** : `google_include`/`google_exclude`, tags OSM, heuristiques de nom (famille entretien du vêtement, denylist coiffure). Source de vérité « ce lieu est-il un concurrent du secteur ? ». | — |
-| `sector_config.js` | Rayons primaire/secondaire par secteur (10 clés). | — |
+| `sector-keys.js` | **`MVP_SECTORS` (17)** + `assertSectorKeyConsistency()` : source de vérité du périmètre + assertion au boot (dropdown = config = table = benchmarks = exclusions). | — |
+| `sector-type-mapping.js` | **Table secteur → primaryType Google (New)** : `google_include`/`google_exclude`, tags OSM, heuristiques de nom. Aussi : `text_queries` (découverte par mot-clé), `classify_by: "name"` (métiers sans type Google), `types_any_include/exclude` (**marqueurs de format** lus dans `types[]`). Source de vérité « ce lieu est-il un concurrent du secteur ? ». | — |
+| `sector_config.js` | Rayons primaire/secondaire par secteur (17 clés, alignés sur le mapping). | — |
 | `market_config.js` | Config marché (FR actif, ES + placeholders ; `min_population`, devise, message hors-zone). | — |
 | `exclusion-lists.js` | Chaînes / faux positifs par secteur (`{name, category, reason}`, matching mot-entier) — sert l'axe chaîne vs direct. | — |
-| `sector-benchmarks.js` | Benchmarks P5 : **code NAF**, flux, profil cible, **CA annuel par établissement** + moyenne + source, saisonnalité. **7/10 secteurs sourcés** (FCGA/Cerfrance/INSEE/études de branche) ; snacking, beauté, retouche restent « proposition ». CA/m² abandonné (voir Décisions). | sources publiques |
+| `sector-benchmarks.js` | Benchmarks P5 : **code NAF**, flux, profil cible, **CA annuel par établissement** + moyenne + source, saisonnalité. **9/17 secteurs sourcés** (FCGA/Cerfrance/INSEE/études de branche) ; snacking, beauté, retouche + les 4 métiers spécialisés restent « proposition ». CA/m² abandonné (voir Décisions). | sources publiques |
 | **Étapes pipeline** | | |
-| `competitor-search.js` | Concurrents (Nearby Search New) + géocodage. **Filtrage par `primaryType` via la table**, **dédup** (place_id puis nom+proximité <25 m), **garde-fou contamination** (`detectContamination`, cross-secteur). Axe chaîne/direct via `exclusion-lists`. | Google Places |
+| `competitor-search.js` | Concurrents (**Nearby Search + Text Search**, fusionnés et dédupliqués) + géocodage. Text Search filtré sur la distance réelle (le cercle n'y est qu'un *bias*). Marque la **censure** (`capped`) quand une recherche revient pleine. **Filtrage par `primaryType` via la table**, **dédup** (place_id puis nom+proximité <25 m), **garde-fou contamination** (`detectContamination`, cross-secteur). Axe chaîne/direct via `exclusion-lists`. | Google Places |
 | `zone-validation.js` | Commune ≥ seuil population (refus/veto si <). | geo.api.gouv.fr (INSEE) |
 | `isochrones.js` | Zones de marche 5/10 min. | Openrouteservice |
 | `demographics.js` | Agrégation population/âge/revenus/logement par IRIS, **pondérée par la part surfacique** de chaque IRIS. CSV nationaux dans `data/`. **Millésime par dimension** : population/logement RP 2022, revenus Filosofi 2021 (dernier dispo à l'IRIS). | INSEE CSV (locaux) |
@@ -124,13 +129,15 @@ Voir `CONVENTIONS.md`. En résumé :
 
 - **Tranches d'âge** : `0-17 / 18-39 / 40-64 / 65+` (exactes depuis les tranches INSEE).
 - **Démographie isochrone** : **pondération surfacique** — chaque IRIS contribue à hauteur de sa part d'aire dans l'isochrone (grille déterministe). Corrige la sur-estimation des petites communes (Carbon-Blanc 10 min : 20 840 → 3 380). Un IRIS sans géométrie retombe sur le comptage entier.
-- **Concurrents** : filtrés par `primaryType` (API New), dédupliqués (place_id + nom/proximité). Google fait foi pour la concurrence ; la densité OSM est un signal plus large (réconcilié dans le texte P4).
+- **Concurrents** : filtrés par `primaryType` (API New), dédupliqués (place_id + nom/proximité). Google fait foi pour la concurrence ; la densité OSM est un signal plus large (réconcilié dans le texte P4, et utilisé comme **corroboration d'un zéro** dans le score).
+- **Deux modes de recherche.** Nearby Search ne suffit pas : il renvoie les 20 lieux les plus **notoires** dont les `types[]` contiennent le type demandé, alors qu'on classe sur le `primaryType`. Pour un métier que Google ne type pas distinctement, le top 20 se remplit de supermarchés et **tout est filtré** (`epicerie_fine` remontait 0 concurrent en production). Un **Text Search par mot-clé** (`text_queries`) les retrouve. 4 métiers sans type Google (`primeur`, `fromagerie`, `poissonnerie`, `cordonnerie`) sont en `classify_by: "name"` : `google_include` vide, découverte 100 % Text Search, le **nom fait foi**.
+- **Format ≠ cuisine.** Les types `*_restaurant` encodent la cuisine, pas le format de service : KFC est typé `restaurant`, Black & White Burger `hamburger_restaurant`. Le format se lit dans **`types[]`** (`fast_food_restaurant`). `snacking` l'accepte, `restauration` le rejette — symétrique, donc comptage unique. Ne PAS utiliser `meal_takeaway`/`meal_delivery` comme marqueur : un restaurant assis qui livre les porte. Le marqueur n'ajoute qu'une voie d'acceptation, `google_exclude` reste un filtre dur (sinon une boulangerie à sandwichs ou un Carrefour City entrerait en snacking).
 - **BODACC** : fenêtre glissante **ancrée sur des mois calendaires complets** → reproductible.
 - **Flux (P1/P2/P5)** : BestTime souvent insuffisant → estimation qualitative via densité (proxy), badge « estimé · non mesuré » en P1, jamais de nombre inventé.
 - **Adresse du titre** : adresse **géocodée** (normalisée), pas la saisie brute.
 - **Géométrie IRIS** : à la demande via OpenDataSoft, **millésime pinné à `year=date'2024'`** (géo 01/01/2024, alignée sur le RP 2022 ; évite de mélanger un futur millésime). Le GeoJSON national >1 Go est impraticable.
 - **Millésime des données démographiques** : pris **par dimension** (le plus récent que l'INSEE publie *à l'IRIS*). Population/logement = **RP 2022**. Revenus = **Filosofi 2021** : l'INSEE a **sauté 2022** (qualité) et **ne diffuse pas Filosofi 2 (2023) à l'IRIS** (commune et au-dessus seulement). Ne pas mélanger Filosofi 1 (2021) et 2 (2023) : méthodologies non comparables. Millésimes affichés au lecteur en P3.
-- **CA sectoriel (P5)** : présenté comme **fourchette de CA annuel par établissement** (+ moyenne du secteur), sourcée (FCGA, Cerfrance, INSEE, études de branche). L'ancien modèle **`surface × CA/m²` a été abandonné** : le CA/m² n'est pas publié de façon harmonisée → un écart de 3× inexploitable, et le chiffre montré reposait sur le champ le moins fondé. La **surface est désormais un modulateur qualitatif** (prompt P5). 7/10 secteurs sourcés ; snacking, beauté, retouche restent « proposition » (pas de source par établissement crédible — on assume plutôt que d'inventer).
+- **CA sectoriel (P5)** : présenté comme **fourchette de CA annuel par établissement** (+ moyenne du secteur), sourcée (FCGA, Cerfrance, INSEE, études de branche). L'ancien modèle **`surface × CA/m²` a été abandonné** : le CA/m² n'est pas publié de façon harmonisée → un écart de 3× inexploitable, et le chiffre montré reposait sur le champ le moins fondé. La **surface est désormais un modulateur qualitatif** (prompt P5). 7/10 secteurs sourcés ; snacking, beauté, retouche + les 4 métiers spécialisés restent « proposition » (pas de source par établissement crédible — on assume plutôt que d'inventer).
 
 ## Calibration des seuils de concurrence — état et impasses
 
@@ -162,4 +169,5 @@ Voir `CONVENTIONS.md`. En résumé :
 - **PR #1 — P0** (5 items) : scoreur déterministe (P0.1), fenêtre BODACC (P0.2), filtrage concurrents + dédup + garde-fou contamination (P0.3), assertion des clés secteur / périmètre 10 secteurs (P0.4), rayon inter-communes (P0.5 : aucun changement, hypothèse infirmée).
 - **PR #2 — P1/P2** (4 items) : badge flux « estimé · non mesuré », adresse du titre normalisée, sources étiquetées + réconciliation OSM/Google, pondération surfacique des IRIS.
 - **PR #3 — Tâche E** (INSEE) : migration démographie au RP 2022 (population/logement), contours IRIS pinnés à 2024, millésimes affichés en P3. Revenus restés Filosofi 2021 (2023 non diffusé à l'IRIS). Validé offline (31 tests + deltas 2021→2022 cohérents, Bordeaux +1,35 %).
+- **`feature/sector-taxonomy`** : périmètre 10 → **17 secteurs** + 4 familles ; décontamination d'`epicerie_fine` (le boucher n'est plus un concurrent) ; **2 bugs de production corrigés** — `snacking` (le wildcard `MATCH:*_restaurant` évinçait ses propres types : 1 concurrent au lieu de 6 sur Judaïque) et `epicerie_fine` (0 concurrent, réparé par le Text Search : 0 → 11) ; arbitrage format de service ; garde-fous score (zéro contredit par OSM, censure). **Tous les secteurs validés en conditions réelles**, pas seulement en tests offline.
 - **PR #4 — Tâche H** (benchmarks CA) : table secteur→NAF (10), **CA par établissement 7/10 sourcés** (FCGA/Cerfrance/INSEE/études de branche), reframe (abandon `surface × CA/m²`, surface = modulateur qualitatif). snacking/beauté/retouche restent « proposition ». Validé par un run P5 réel.
