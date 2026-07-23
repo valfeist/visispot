@@ -84,4 +84,60 @@ test("garment-care: pressing kept, laverie filtered by name heuristic on laundry
   assert.deepStrictEqual(direct.map((d) => d.name), ["Pressing Net Service"]);
 });
 
+// --- Taxonomy extension (17 sectors) -----------------------------------------
+
+test("snacking keeps fast_food_restaurant (MATCH:*_restaurant no longer evicts it)", () => {
+  const places = [
+    P("Snack du Coin", "fast_food_restaurant", 0),
+    P("Chez Hot Dog", "hot_dog_restaurant", 2),
+    P("Le Bistrot Assis", "italian_restaurant", 4),
+  ];
+  const { direct } = classifyCompetitors(places, "snacking", []);
+  const names = direct.map((d) => d.name).sort();
+  // The two snacking types are kept; the sit-down restaurant is still rejected.
+  assert.deepStrictEqual(names, ["Chez Hot Dog", "Snack du Coin"]);
+});
+
+test("epicerie_fine no longer counts a butcher as a direct competitor", () => {
+  const places = [
+    P("Épicerie Fine du Marché", "grocery_store", 0),
+    P("Boucherie Martin", "butcher_shop", 2),
+  ];
+  const { direct } = classifyCompetitors(places, "epicerie_fine", []);
+  assert.deepStrictEqual(direct.map((d) => d.name), ["Épicerie Fine du Marché"]);
+});
+
+test("epicerie_fine name_denylist rejects a loosely typed specialised trade", () => {
+  // Google types some specialised shops as grocery_store; the name must win.
+  const places = [P("Fromagerie Dubois", "grocery_store", 0)];
+  const { direct } = classifyCompetitors(places, "epicerie_fine", []);
+  assert.strictEqual(direct.length, 0, "a fromagerie must not count as épicerie fine");
+});
+
+test("osm_only sector (cordonnerie) gates on the name, not the type", () => {
+  const places = [
+    P("Cordonnerie Saint-Michel", "shoe_store", 0),
+    P("Foot Locker", "shoe_store", 2),
+  ];
+  const { direct } = classifyCompetitors(places, "cordonnerie", []);
+  assert.deepStrictEqual(direct.map((d) => d.name), ["Cordonnerie Saint-Michel"]);
+});
+
+test("osm_only sectors discover through google_search_types", () => {
+  // google_include is empty by design, so the search must fall back to the
+  // broad discovery types instead of sending an empty includedTypes.
+  assert.deepStrictEqual(includedTypesForSector("cordonnerie"), ["shoe_store"]);
+  assert.ok(includedTypesForSector("primeur").includes("grocery_store"));
+  assert.ok(includedTypesForSector("poissonnerie").length > 0, "poissonnerie must query something");
+});
+
+test("poissonnerie excludes seafood restaurants (retail vs restaurant)", () => {
+  const places = [
+    P("Poissonnerie de la Criée", "grocery_store", 0),
+    P("Le Bar à Huîtres", "seafood_restaurant", 2),
+  ];
+  const { direct } = classifyCompetitors(places, "poissonnerie", []);
+  assert.deepStrictEqual(direct.map((d) => d.name), ["Poissonnerie de la Criée"]);
+});
+
 console.log(`\n${passed} tests passed.`);
