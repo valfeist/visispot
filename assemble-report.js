@@ -13,7 +13,8 @@ require("./load-env");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { geocodeAddress, searchCompetitors, classifyCompetitors, includedTypesForSector, detectContamination } =
+const { geocodeAddress, searchCompetitors,
+  searchCompetitorsForSector, classifyCompetitors, includedTypesForSector, detectContamination } =
   require("./competitor-search");
 const { validateZone } = require("./zone-validation");
 const { getIsochrones } = require("./isochrones");
@@ -102,8 +103,8 @@ async function main() {
   const radii = SECTOR_CONFIG[order.businessType];
   const types = includedTypesForSector(order.businessType);
   const entries = EXCLUSION_LISTS[order.businessType] ?? [];
-  const primaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_primary, types);
-  const secondaryRaw = await searchCompetitors(loc.latitude, loc.longitude, radii.radius_secondary, types);
+  const primaryRaw = await searchCompetitorsForSector(loc.latitude, loc.longitude, radii.radius_primary, order.businessType);
+  const secondaryRaw = await searchCompetitorsForSector(loc.latitude, loc.longitude, radii.radius_secondary, order.businessType);
 
   // Contamination guard-rail: flag any raw result whose primaryType is outside
   // the sector whitelist (cross-sector bleed detector, all sectors).

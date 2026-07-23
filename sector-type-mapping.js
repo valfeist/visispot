@@ -194,6 +194,11 @@ const SECTOR_TYPE_MAPPING = {
     // name_denylist mechanism (no helper change needed).
     name_denylist: ["boucherie", "charcuterie", "poissonnerie", "primeur",
                     "fromagerie", "crémerie", "cremerie"],
+    // Nearby Search alone returns 0 competitors here: `grocery_store` is
+    // dominated by supermarkets, so the prominence-ranked top 20 never contains
+    // an actual fine grocery. These keyword searches surface them (they come
+    // back as grocery_store / deli, already whitelisted above).
+    text_queries: ["épicerie fine", "épicerie italienne", "produits du terroir"],
     legacy_note: "En legacy : `grocery_or_supermarket` mélange épicerie fine et supermarché. " +
                  "Distinction fiable seulement en API New ou via OSM.",
   },

@@ -116,4 +116,15 @@ test("epicerie_fine name_denylist rejects a loosely typed specialised trade", ()
 
 
 
+test("epicerie_fine declares text_queries (Nearby alone returns zero live)", () => {
+  const { SECTOR_TYPE_MAPPING } = require("../sector-type-mapping");
+  const q = SECTOR_TYPE_MAPPING.epicerie_fine.text_queries;
+  assert.ok(Array.isArray(q) && q.length > 0, "epicerie_fine needs keyword queries");
+  // The types those searches return must already be whitelisted, otherwise the
+  // extra calls would be filtered out again.
+  for (const t of ["grocery_store", "deli", "food_store"]) {
+    assert.ok(SECTOR_TYPE_MAPPING.epicerie_fine.google_include.includes(t), `${t} must stay whitelisted`);
+  }
+});
+
 console.log(`\n${passed} tests passed.`);

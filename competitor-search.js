@@ -428,6 +428,76 @@ async function searchCompetitors(latitude, longitude, radiusMeters, googleTypes)
 }
 
 // =====================================================================
+// BLOCK 5e — Text Search (second discovery mode)
+// =====================================================================
+// Why this exists: Nearby Search returns the 20 most PROMINENT places whose
+// `types[]` contain a requested type, but we classify on `primaryType`. For a
+// trade Google does not type distinctly (épicerie fine sits under the same
+// grocery_store bucket as Monoprix), the top 20 fill up with supermarkets,
+// cinemas and bakeries and every genuine shop is filtered out — a live run on
+// Rue Judaïque returned 0 competitors for epicerie_fine. A keyword Text Search
+// finds them instead (L'épicerie 56, Le Comptoir Bordelais...), and they come
+// back with primaryType grocery_store / deli, already in google_include, so no
+// filter change is needed.
+//
+// Caveat handled below: searchText only supports a CIRCLE as locationBias (not
+// as a restriction), so results can fall outside the radius. We filter on the
+// real distance to keep competitor counts honest.
+
+async function searchCompetitorsByText(latitude, longitude, radiusMeters, textQuery) {
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_API_KEY,
+      "X-Goog-FieldMask":
+        "places.id,places.displayName,places.primaryType,places.types,places.formattedAddress,places.rating,places.userRatingCount,places.businessStatus,places.location,places.regularOpeningHours",
+    },
+    body: JSON.stringify({
+      textQuery,
+      maxResultCount: 20,
+      locationBias: {
+        circle: { center: { latitude, longitude }, radius: radiusMeters },
+      },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `Text search "${textQuery}" failed (HTTP ${response.status}): ${JSON.stringify(data)}`
+    );
+  }
+
+  return (data.places ?? [])
+    .map(formatCompetitor)
+    .filter(
+      (c) =>
+        c.latitude !== null &&
+        c.longitude !== null &&
+        metersBetween(latitude, longitude, c.latitude, c.longitude) <= radiusMeters
+    );
+}
+
+// Sector-aware search: Nearby Search, plus a Text Search per `text_queries`
+// entry declared by the sector. Results are merged and deduplicated, then go
+// through the usual classification (no special-casing downstream).
+async function searchCompetitorsForSector(latitude, longitude, radiusMeters, sector) {
+  const types = includedTypesForSector(sector) ?? [];
+  const collected = types.length
+    ? await searchCompetitors(latitude, longitude, radiusMeters, types)
+    : [];
+
+  for (const query of SECTOR_TYPE_MAPPING[sector]?.text_queries ?? []) {
+    collected.push(
+      ...(await searchCompetitorsByText(latitude, longitude, radiusMeters, query))
+    );
+  }
+
+  return dedupeCompetitors(collected);
+}
+
+// =====================================================================
 // BLOCK 6 — Orchestrator: geocode then run both searches
 // =====================================================================
 
@@ -539,6 +609,8 @@ if (require.main === module) {
 module.exports = {
   geocodeAddress,
   searchCompetitors,
+  searchCompetitorsForSector,
+  searchCompetitorsByText,
   classifyCompetitors,
   dedupeCompetitors,
   detectContamination,
