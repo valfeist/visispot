@@ -25,6 +25,7 @@ const { getStreetContext } = require("./street-context");
 const { getCommercialDynamics } = require("./commercial-dynamics");
 const { getCommercialSaleReference } = require("./market-reference");
 const { SECTOR_CONFIG } = require("./sector_config");
+const { SECTOR_TYPE_MAPPING } = require("./sector-type-mapping");
 const { EXCLUSION_LISTS } = require("./exclusion-lists");
 const { MVP_SECTORS, assertSectorKeyConsistency } = require("./sector-keys");
 const {
@@ -87,6 +88,21 @@ if (!MVP_SECTORS.includes(order.businessType)) {
     `Secteur "${order.businessType}" non géré.\nSecteurs valides : ${MVP_SECTORS.join(", ")}`
   );
   process.exit(1);
+}
+
+
+// Counts, in the OSM density ring closest to `radius`, the shops whose category
+// matches the sector's `osm_include` tags. The OSM category is the raw tag value
+// (shop=bakery -> "bakery"), so the mapping's tags can be used directly. Returns
+// null when density is unavailable, so the scorer knows it has no signal.
+function osmSameCategoryCount(sector, density, radius) {
+  const tags = SECTOR_TYPE_MAPPING[sector]?.osm_include ?? [];
+  const rings = Object.values(density?.rings ?? {});
+  if (!rings.length || !tags.length) return null;
+  const ring = rings.reduce((best, r) =>
+    Math.abs(r.radiusMeters - radius) < Math.abs(best.radiusMeters - radius) ? r : best
+  );
+  return tags.reduce((n, t) => n + (ring.byCategory?.[t.split("=")[1]] ?? 0), 0);
 }
 
 async function main() {
@@ -202,6 +218,9 @@ async function main() {
       chainPrimary: primary.chain.length,
       directSecondary: secondary.direct.length,
       densityGlobal1km: density.rings.r1000.total,
+      // Corroboration signal for a zero competitor count (see scoring.js):
+      // how many same-trade shops OSM maps in the closest ring.
+      osmSameCategory: osmSameCategoryCount(order.businessType, density, radii.radius_primary),
     },
     demographics: {
       population: agg10.population.total,

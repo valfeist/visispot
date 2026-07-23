@@ -102,4 +102,29 @@ test("uncovered zone vetoes to NON VIABLE", () => {
   assert.ok(r.breakdown.vetoes.includes("zone_non_couverte"));
 });
 
+// --- Zero-competitor guard (OSM corroboration) --------------------------------
+const zeroBase = {
+  businessType: "epicerie_fine",
+  zone: { covered: true },
+  demographics: { medianIncome: 26000, ownerShare: 0.35, population: 20000 },
+  risks: { vacancyPct300: 5, fastFood300: 3, worksUnknown: true, rentUnknown: true },
+};
+const withOsm = (osmSameCategory) =>
+  computeScore({ ...zeroBase, competition: { directPrimary: 0, chainPrimary: 0, densityGlobal1km: 900, osmSameCategory } });
+
+test("a zero contradicted by OSM is not rewarded as an empty market", () => {
+  const r = withOsm(17);
+  assert.strictEqual(r.keyMetrics.directCompetition, "Indéterminée");
+  assert.ok(r.score < withOsm(1).score, "a doubtful zero must score below a genuine one");
+});
+
+test("a zero corroborated by OSM still earns Absente", () => {
+  assert.strictEqual(withOsm(1).keyMetrics.directCompetition, "Absente");
+});
+
+test("without an OSM signal the zero keeps its previous behaviour", () => {
+  assert.strictEqual(withOsm(null).keyMetrics.directCompetition, "Absente");
+  assert.strictEqual(withOsm(null).score, withOsm(1).score);
+});
+
 console.log(`\n${passed} tests passed.`);

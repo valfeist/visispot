@@ -97,15 +97,31 @@ const round1 = (x) => Math.round(x * 10) / 10;
 // weigh half. Score decreases monotonically as competitors increase, with
 // a floor at 1 (dense competition must hurt, but never zero out the rest).
 
+// A zero competitor count is the single most rewarding input of the whole model
+// (10/10 on the heaviest pillar), so it is also the most dangerous when it comes
+// from a data failure rather than an empty market. Two sectors were found
+// silently returning zero in production. When OSM lists this many same-trade
+// shops nearby, a Google zero is not credible and must not be rewarded.
+// Asymmetric on purpose: OSM coverage is thin for some trades (no pressing or
+// cordonnerie tagged in central Bordeaux), so a LOW OSM count never confirms an
+// absence — it only ever challenges one.
+const OSM_CONTRADICTS_ZERO = 3;
+
 function scoreConcurrence(input, sector) {
   const directPrimary = input.competition.directPrimary ?? 0;
   const chainPrimary = input.competition.chainPrimary ?? 0;
+  const osmSameCategory = input.competition.osmSameCategory ?? null;
   const denseMin = COMPETITION_DENSE_MIN[sector] ?? DEFAULT_DENSE_MIN;
   const effective = directPrimary + 0.5 * chainPrimary;
 
   let category;
   let raw;
-  if (effective === 0) {
+  if (effective === 0 && osmSameCategory !== null && osmSameCategory >= OSM_CONTRADICTS_ZERO) {
+    // Contradiction: no competitor found, yet OSM maps several of the same trade.
+    // Neutral score instead of the 10/10 an "empty market" would earn.
+    category = "Indéterminée";
+    raw = 5;
+  } else if (effective === 0) {
     category = "Absente";
     raw = 10;
   } else if (effective < denseMin) {
@@ -122,7 +138,16 @@ function scoreConcurrence(input, sector) {
     weight: WEIGHTS.concurrence,
     raw: round1(raw),
     category,
-    inputs: { directPrimary, chainPrimary, effective, denseMin },
+    inputs: {
+      directPrimary,
+      chainPrimary,
+      effective,
+      denseMin,
+      osmSameCategory,
+      ...(category === "Indéterminée"
+        ? { dataWarning: `0 concurrent trouvé mais ${osmSameCategory} commerces du même type recensés dans OpenStreetMap — donnée à confirmer.` }
+        : {}),
+    },
   };
 }
 
